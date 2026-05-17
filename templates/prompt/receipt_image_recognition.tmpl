@@ -23,11 +23,48 @@ Your task is to extract structured transaction data from images provided by the 
 
 ## Important rules
 1. Only include fields you can confidently identify.
-2. If unsure about a value, omit the field (do not guess).
+2. If unsure about a non-category value, omit the field (do not guess).
 3. If the image contains multiple items, please combine them into a single transaction.
 4. If the image contains no transaction information, simply return an empty JSON object.
 5. Always return valid JSON.
 6. The current time is {{.CurrentDateTime}}.
+
+## Category decision rules
+1. The `category` value must be exactly one category name from the options below. Do not invent names, do not output parent category names, and do not output explanations.
+2. For `category`, carefully infer the most specific category from merchant name, product/service name, bill title, counterparty, payment channel, and refund text. If there is any useful evidence, choose the best matching concrete category instead of omitting the field.
+3. Avoid vague or legacy miscellaneous categories unless no other category fits. Especially avoid: 其他, 其他支出, 其他收入, 其他转账, 餐饮日常, 餐饮, 交通, 购物, 购物消费, 生活日用, 生活服务, 休闲玩乐, 医疗保健, 汽车交通, 爱车, 房租水电.
+4. If a transaction is a refund, classify by the original purchase content when it is visible. For example, a Walmart/Sam's Club refund should be 食品, a 12306 refund should be 火车票, and a game refund should be 玩具游戏.
+5. Use the following common mappings when applicable:
+   - restaurant, supermarket, grocery, Sam's Club, Walmart, Pupu, Ele.me, meal, snack card -> 食品
+   - drinks, milk tea, coffee, beverage -> 饮料
+   - fruit or snacks explicitly -> 水果零食
+   - taxi, ride hailing, Gaode/Amap taxi, Hello ride, Luobo Kuaipao, car ride -> 打车租车
+   - subway, bus, transit card, Wuhan Tong, Jiangsu/Shanghai transport card -> 公共交通
+   - 12306, railway, train ticket -> 火车票
+   - flight or airline ticket -> 飞机票
+   - phone bill, China Unicom/Mobile/Telecom recharge -> 电话费
+   - eSIM, mobile data package, broadband, internet fee -> 上网费
+   - electricity, water, gas, utility bill -> 水电煤气
+   - rent, housing rent, property management fee -> 租金贷款
+   - Steam, game recharge, NetEase Games, miHoYo, Genshin, Honkai, Wuthering Waves, Echoes, Genesis Crystals -> 玩具游戏
+   - App Store, iCloud, cloud service, Tencent Cloud, BURN.HAIR, Zhipu, Cpolar, membership, subscription, SVIP -> 会员订阅
+   - hospital, clinic, registration, treatment, vaccine, medical examination -> 检查治疗
+   - pharmacy, medicine, drug, medical consumables -> 药品
+   - pet food, cat litter, cat/dog care, pet vaccine, pet grooming -> 宠物花费
+   - courier, shipping, delivery fee, SF Express -> 快递费
+   - course, training, adult education, online class -> 培训课程
+   - clothes, shoes, underwear, cosplay costume -> 衣服
+   - makeup, beauty lenses, cosmetics -> 化妆品
+   - haircut, beauty salon, medical beauty -> 美容美发
+   - phone, computer, CPU, GPU, memory, motherboard, keyboard, monitor, NAS, charger, hard drive -> 电子产品
+   - paper towels, detergent, umbrella, battery, daily household goods -> 家居用品
+   - service fee, platform fee, payment fee -> 手续费
+   - gift, red packet, donation, paying for another person -> 礼物
+6. Choose `type` before `category`:
+   - Payment to a merchant or platform is usually `expense`.
+   - Refund, withdrawal income, sale proceeds, salary, bonus, interest, or business income is usually `income`.
+   - Money movement between own accounts or explicit account transfer/repayment is `transfer` only when both sides are financial accounts rather than a purchase.
+7. Put merchant and item/service keywords in `description` so the user can review the classification.
 
 ## Options
 ### Expense categories:
