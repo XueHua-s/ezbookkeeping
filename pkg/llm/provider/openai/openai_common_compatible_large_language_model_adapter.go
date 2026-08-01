@@ -1,11 +1,13 @@
 package openai
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/invopop/jsonschema"
 	"github.com/mayswind/ezbookkeeping/pkg/core"
@@ -48,7 +50,7 @@ type OpenAIChatCompletionsRequestResponseFormatType string
 const (
 	OpenAIChatCompletionsRequestResponseFormatTypeJsonObject OpenAIChatCompletionsRequestResponseFormatType = "json_object"
 	OpenAIChatCompletionsRequestResponseFormatTypeJsonSchema OpenAIChatCompletionsRequestResponseFormatType = "json_schema"
-	openAIChatCompletionsDefaultJsonSchemaName               string                                     = "structured_output"
+	openAIChatCompletionsDefaultJsonSchemaName               string                                         = "structured_output"
 )
 
 // OpenAIChatCompletionsRequest defines the structure of OpenAI chat completions request
@@ -103,6 +105,16 @@ type OpenAIChatCompletionsResponseMessage struct {
 	Content *string `json:"content"`
 }
 
+// OpenAIChatCompletionsStreamResponse defines one streamed chat completions response chunk.
+type OpenAIChatCompletionsStreamResponse struct {
+	Choices []*OpenAIChatCompletionsStreamResponseChoice `json:"choices"`
+}
+
+// OpenAIChatCompletionsStreamResponseChoice defines one choice in a streamed response chunk.
+type OpenAIChatCompletionsStreamResponseChoice struct {
+	Delta *OpenAIChatCompletionsResponseMessage `json:"delta"`
+}
+
 // BuildTextualRequest returns the http request by OpenAI common compatible adapter
 func (p *CommonOpenAIChatCompletionsAPILargeLanguageModelAdapter) BuildTextualRequest(c core.Context, uid int64, request *data.LargeLanguageModelRequest, responseType data.LargeLanguageModelResponseFormat) (*http.Request, error) {
 	requestBody, err := p.buildJsonRequestBody(c, uid, request, responseType)
@@ -125,6 +137,10 @@ func (p *CommonOpenAIChatCompletionsAPILargeLanguageModelAdapter) BuildTextualRe
 
 // ParseTextualResponse returns the textual response by OpenAI common compatible adapter
 func (p *CommonOpenAIChatCompletionsAPILargeLanguageModelAdapter) ParseTextualResponse(c core.Context, uid int64, body []byte, responseType data.LargeLanguageModelResponseFormat) (*data.LargeLanguageModelTextualResponse, error) {
+	if bytes.HasPrefix(bytes.TrimSpace(body), []byte("data:")) {
+		return p.parseStreamedTextualResponse(c, uid, body)
+	}
+
 	chatCompletionsResponse := &OpenAIChatCompletionsResponse{}
 	err := json.Unmarshal(body, &chatCompletionsResponse)
 
@@ -145,6 +161,58 @@ func (p *CommonOpenAIChatCompletionsAPILargeLanguageModelAdapter) ParseTextualRe
 	}
 
 	return textualResponse, nil
+}
+
+func (p *CommonOpenAIChatCompletionsAPILargeLanguageModelAdapter) parseStreamedTextualResponse(c core.Context, uid int64, body []byte) (*data.LargeLanguageModelTextualResponse, error) {
+	contentBuilder := &strings.Builder{}
+	hasContent := false
+	scanner := bufio.NewScanner(bytes.NewReader(body))
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+
+		eventData := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+
+		if eventData == "" {
+			continue
+		}
+
+		if eventData == "[DONE]" {
+			break
+		}
+
+		chunk := &OpenAIChatCompletionsStreamResponse{}
+
+		if err := json.Unmarshal([]byte(eventData), chunk); err != nil {
+			log.Errorf(c, "[openai_common_compatible_large_language_model_adapter.parseStreamedTextualResponse] failed to parse chat completions stream for user \"uid:%d\", because %s", uid, err.Error())
+			return nil, errs.ErrFailedToRequestRemoteApi
+		}
+
+		for _, choice := range chunk.Choices {
+			if choice != nil && choice.Delta != nil && choice.Delta.Content != nil {
+				contentBuilder.WriteString(*choice.Delta.Content)
+				hasContent = true
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Errorf(c, "[openai_common_compatible_large_language_model_adapter.parseStreamedTextualResponse] failed to read chat completions stream for user \"uid:%d\", because %s", uid, err.Error())
+		return nil, errs.ErrFailedToRequestRemoteApi
+	}
+
+	if !hasContent {
+		log.Errorf(c, "[openai_common_compatible_large_language_model_adapter.parseStreamedTextualResponse] chat completions stream is invalid for user \"uid:%d\"", uid)
+		return nil, errs.ErrFailedToRequestRemoteApi
+	}
+
+	return &data.LargeLanguageModelTextualResponse{
+		Content: contentBuilder.String(),
+	}, nil
 }
 
 func (p *CommonOpenAIChatCompletionsAPILargeLanguageModelAdapter) buildJsonRequestBody(c core.Context, uid int64, request *data.LargeLanguageModelRequest, responseType data.LargeLanguageModelResponseFormat) ([]byte, error) {
@@ -199,7 +267,7 @@ func (p *CommonOpenAIChatCompletionsAPILargeLanguageModelAdapter) buildJsonReque
 			schema.Version = ""
 
 			chatCompletionsRequest.ResponseFormat = &OpenAIChatCompletionsRequestResponseFormat{
-				Type:       OpenAIChatCompletionsRequestResponseFormatTypeJsonSchema,
+				Type: OpenAIChatCompletionsRequestResponseFormatTypeJsonSchema,
 				JsonSchema: &OpenAIChatCompletionsRequestJsonSchema{
 					Name:   openAIChatCompletionsDefaultJsonSchemaName,
 					Schema: schema,

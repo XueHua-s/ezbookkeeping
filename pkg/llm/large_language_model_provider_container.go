@@ -120,5 +120,13 @@ func (l *LargeLanguageModelProviderContainer) getJsonResponseWithFallback(c core
 	}
 
 	log.Warnf(c, "[large_language_model_provider_container.getJsonResponseWithFallback] primary %s provider failed for user \"uid:%d\", retrying with fallback provider, because %s", usage, uid, err.Error())
-	return fallbackProvider.GetJsonResponse(c, uid, fallbackLLMConfig, request)
+	fallbackRequest := request
+
+	if fallbackLLMConfig.LLMProvider == settings.OpenAILLMProvider && request != nil && !request.Stream {
+		fallbackRequestCopy := *request
+		fallbackRequestCopy.Stream = true
+		fallbackRequest = &fallbackRequestCopy
+	}
+
+	return fallbackProvider.GetJsonResponse(c, uid, fallbackLLMConfig, fallbackRequest)
 }

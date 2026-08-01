@@ -12,13 +12,17 @@ import (
 )
 
 type fallbackTestProvider struct {
-	response *data.LargeLanguageModelTextualResponse
-	err      error
-	calls    int
+	response   *data.LargeLanguageModelTextualResponse
+	err        error
+	calls      int
+	lastStream bool
 }
 
 func (p *fallbackTestProvider) GetJsonResponse(c core.Context, uid int64, currentLLMConfig *settings.LLMConfig, request *data.LargeLanguageModelRequest) (*data.LargeLanguageModelTextualResponse, error) {
 	p.calls++
+	if request != nil {
+		p.lastStream = request.Stream
+	}
 	return p.response, p.err
 }
 
@@ -40,6 +44,8 @@ func TestGetJsonResponseByReceiptImageRecognitionModel_UsesFallbackAfterPrimaryF
 	assert.Equal(t, "fallback", response.Content)
 	assert.Equal(t, 1, primary.calls)
 	assert.Equal(t, 1, fallback.calls)
+	assert.False(t, primary.lastStream)
+	assert.True(t, fallback.lastStream)
 }
 
 func TestGetJsonResponseByAIAssistantModel_DoesNotUseFallbackAfterPrimarySuccess(t *testing.T) {

@@ -121,6 +121,25 @@ func TestCommonOpenAIChatCompletionsAPILargeLanguageModelAdapter_ParseTextualRes
 	assert.Equal(t, "This is a test response", result.Content)
 }
 
+func TestCommonOpenAIChatCompletionsAPILargeLanguageModelAdapter_ParseTextualResponse_ValidStreamResponse(t *testing.T) {
+	adapter := &CommonOpenAIChatCompletionsAPILargeLanguageModelAdapter{
+		apiProvider: &OpenAIOfficialChatCompletionsAPIProvider{},
+	}
+
+	response := `data: {"choices":[{"delta":{"content":"{\"amount\":"}}]}
+
+data: {"choices":[{"delta":{"content":"12}"}}]}
+
+data: {"choices":[{"delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]
+`
+
+	result, err := adapter.ParseTextualResponse(core.NewNullContext(), 0, []byte(response), data.LARGE_LANGUAGE_MODEL_RESPONSE_FORMAT_JSON)
+	assert.Nil(t, err)
+	assert.Equal(t, `{"amount":12}`, result.Content)
+}
+
 func TestCommonOpenAIChatCompletionsAPILargeLanguageModelAdapter_ParseTextualResponse_EmptyResponse(t *testing.T) {
 	adapter := &CommonOpenAIChatCompletionsAPILargeLanguageModelAdapter{
 		apiProvider: &OpenAIOfficialChatCompletionsAPIProvider{},
