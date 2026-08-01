@@ -16,52 +16,40 @@ import (
 
 // LargeLanguageModelProviderContainer contains the current large language model provider
 type LargeLanguageModelProviderContainer struct {
-	receiptImageRecognitionCurrentProvider  provider.LargeLanguageModelProvider
-	receiptImageRecognitionFallbackProvider provider.LargeLanguageModelProvider
-	aiAssistantCurrentProvider              provider.LargeLanguageModelProvider
-	aiAssistantFallbackProvider             provider.LargeLanguageModelProvider
+	receiptImageRecognitionProvider provider.LargeLanguageModelProvider
+	aiAssistantProvider             provider.LargeLanguageModelProvider
 }
 
-// Initialize a large language model provider container singleton instance
-var (
-	Container = &LargeLanguageModelProviderContainer{}
-)
+type fallbackLargeLanguageModelProvider struct {
+	usage            string
+	primaryProvider  provider.LargeLanguageModelProvider
+	fallbackProvider provider.LargeLanguageModelProvider
+}
+
+// Container is the singleton large language model provider container.
+var Container = &LargeLanguageModelProviderContainer{}
 
 // InitializeLargeLanguageModelProvider initializes the current large language model provider according to the config
 func InitializeLargeLanguageModelProvider(config *settings.Config) error {
-	var err error = nil
-	Container.receiptImageRecognitionCurrentProvider = nil
-	Container.receiptImageRecognitionFallbackProvider = nil
-	Container.aiAssistantCurrentProvider = nil
-	Container.aiAssistantFallbackProvider = nil
-
-	if config.ReceiptImageRecognitionLLMConfig != nil {
-		Container.receiptImageRecognitionCurrentProvider, err = initializeLargeLanguageModelProvider(config.ReceiptImageRecognitionLLMConfig, config.EnableDebugLog)
-
-		if err != nil {
-			return err
-		}
+	var err error
+	Container.receiptImageRecognitionProvider, err = initializeLargeLanguageModelProviderWithFallback(
+		"receipt image recognition",
+		config.ReceiptImageRecognitionLLMConfig,
+		config.ReceiptImageRecognitionFallbackLLMConfig,
+		config.EnableDebugLog,
+	)
+	if err != nil {
+		return err
 	}
 
-	if config.ReceiptImageRecognitionFallbackLLMConfig != nil {
-		Container.receiptImageRecognitionFallbackProvider, err = initializeLargeLanguageModelProvider(config.ReceiptImageRecognitionFallbackLLMConfig, config.EnableDebugLog)
-
-		if err != nil {
-			return err
-		}
-	}
-
-	if config.EnableAIAssistant && config.AIAssistantLLMConfig != nil {
-		Container.aiAssistantCurrentProvider, err = initializeLargeLanguageModelProvider(config.AIAssistantLLMConfig, config.EnableDebugLog)
-
-		if err != nil {
-			return err
-		}
-	}
-
-	if config.EnableAIAssistant && config.AIAssistantFallbackLLMConfig != nil {
-		Container.aiAssistantFallbackProvider, err = initializeLargeLanguageModelProvider(config.AIAssistantFallbackLLMConfig, config.EnableDebugLog)
-
+	Container.aiAssistantProvider = nil
+	if config.EnableAIAssistant {
+		Container.aiAssistantProvider, err = initializeLargeLanguageModelProviderWithFallback(
+			"ai assistant",
+			config.AIAssistantLLMConfig,
+			config.AIAssistantFallbackLLMConfig,
+			config.EnableDebugLog,
+		)
 		if err != nil {
 			return err
 		}
@@ -70,8 +58,32 @@ func InitializeLargeLanguageModelProvider(config *settings.Config) error {
 	return nil
 }
 
+func initializeLargeLanguageModelProviderWithFallback(usage string, primaryConfig *settings.LLMConfig, fallbackConfig *settings.LLMConfig, enableResponseLog bool) (provider.LargeLanguageModelProvider, error) {
+	primaryProvider, err := initializeLargeLanguageModelProvider(primaryConfig, enableResponseLog)
+	if err != nil {
+		return nil, err
+	}
+
+	fallbackProvider, err := initializeLargeLanguageModelProvider(fallbackConfig, enableResponseLog)
+	if err != nil {
+		return nil, err
+	}
+
+	if primaryProvider == nil {
+		return nil, nil
+	}
+
+	return &fallbackLargeLanguageModelProvider{
+		usage:            usage,
+		primaryProvider:  primaryProvider,
+		fallbackProvider: fallbackProvider,
+	}, nil
+}
+
 func initializeLargeLanguageModelProvider(llmConfig *settings.LLMConfig, enableResponseLog bool) (provider.LargeLanguageModelProvider, error) {
-	if llmConfig.LLMProvider == settings.OpenAILLMProvider {
+	if llmConfig == nil || llmConfig.LLMProvider == "" {
+		return nil, nil
+	} else if llmConfig.LLMProvider == settings.OpenAILLMProvider {
 		return openai.NewOpenAILargeLanguageModelProvider(llmConfig, enableResponseLog), nil
 	} else if llmConfig.LLMProvider == settings.OpenAICompatibleLLMProvider {
 		return openai.NewOpenAICompatibleLargeLanguageModelProvider(llmConfig, enableResponseLog), nil
@@ -87,46 +99,83 @@ func initializeLargeLanguageModelProvider(llmConfig *settings.LLMConfig, enableR
 		return lmstudio.NewLMStudioLargeLanguageModelProvider(llmConfig, enableResponseLog), nil
 	} else if llmConfig.LLMProvider == settings.GoogleAILLMProvider {
 		return googleai.NewGoogleAILargeLanguageModelProvider(llmConfig, enableResponseLog), nil
-	} else if llmConfig.LLMProvider == "" {
-		return nil, nil
 	}
 
 	return nil, errs.ErrInvalidLLMProvider
 }
 
 // GetJsonResponseByReceiptImageRecognitionModel returns the json response from the current large language model provider by receipt image recognition model
-func (l *LargeLanguageModelProviderContainer) GetJsonResponseByReceiptImageRecognitionModel(c core.Context, uid int64, currentConfig *settings.Config, request *data.LargeLanguageModelRequest) (*data.LargeLanguageModelTextualResponse, error) {
-	if currentConfig.ReceiptImageRecognitionLLMConfig == nil || l.receiptImageRecognitionCurrentProvider == nil {
+func (l *LargeLanguageModelProviderContainer) GetJsonResponseByReceiptImageRecognitionModel(c core.Context, uid int64, request *data.LargeLanguageModelRequest) (*data.LargeLanguageModelTextualResponse, error) {
+	if l.receiptImageRecognitionProvider == nil {
 		return nil, errs.ErrInvalidLLMProvider
 	}
 
-	return l.getJsonResponseWithFallback(c, uid, "receipt image recognition", l.receiptImageRecognitionCurrentProvider, currentConfig.ReceiptImageRecognitionLLMConfig, l.receiptImageRecognitionFallbackProvider, currentConfig.ReceiptImageRecognitionFallbackLLMConfig, request)
+	return l.receiptImageRecognitionProvider.GetJsonResponse(c, uid, request)
 }
 
 // GetJsonResponseByAIAssistantModel returns the json response from the current large language model provider by ai assistant model
-func (l *LargeLanguageModelProviderContainer) GetJsonResponseByAIAssistantModel(c core.Context, uid int64, currentConfig *settings.Config, request *data.LargeLanguageModelRequest) (*data.LargeLanguageModelTextualResponse, error) {
-	if currentConfig.AIAssistantLLMConfig == nil || l.aiAssistantCurrentProvider == nil {
+func (l *LargeLanguageModelProviderContainer) GetJsonResponseByAIAssistantModel(c core.Context, uid int64, request *data.LargeLanguageModelRequest) (*data.LargeLanguageModelTextualResponse, error) {
+	if l.aiAssistantProvider == nil {
 		return nil, errs.ErrInvalidLLMProvider
 	}
 
-	return l.getJsonResponseWithFallback(c, uid, "ai assistant", l.aiAssistantCurrentProvider, currentConfig.AIAssistantLLMConfig, l.aiAssistantFallbackProvider, currentConfig.AIAssistantFallbackLLMConfig, request)
+	return l.aiAssistantProvider.GetJsonResponse(c, uid, request)
 }
 
-func (l *LargeLanguageModelProviderContainer) getJsonResponseWithFallback(c core.Context, uid int64, usage string, currentProvider provider.LargeLanguageModelProvider, currentLLMConfig *settings.LLMConfig, fallbackProvider provider.LargeLanguageModelProvider, fallbackLLMConfig *settings.LLMConfig, request *data.LargeLanguageModelRequest) (*data.LargeLanguageModelTextualResponse, error) {
-	response, err := currentProvider.GetJsonResponse(c, uid, currentLLMConfig, request)
+// GetJsonResponse retries the complete request with the fallback only when the
+// primary provider fails before returning a response.
+func (p *fallbackLargeLanguageModelProvider) GetJsonResponse(c core.Context, uid int64, request *data.LargeLanguageModelRequest) (*data.LargeLanguageModelTextualResponse, error) {
+	response, err := p.primaryProvider.GetJsonResponse(c, uid, request)
 
-	if err == nil || fallbackProvider == nil || fallbackLLMConfig == nil || fallbackLLMConfig.LLMProvider == "" {
+	if err == nil || p.fallbackProvider == nil {
 		return response, err
 	}
 
-	log.Warnf(c, "[large_language_model_provider_container.getJsonResponseWithFallback] primary %s provider failed for user \"uid:%d\", retrying with fallback provider, because %s", usage, uid, err.Error())
-	fallbackRequest := request
+	p.logFallback(c, uid, err)
+	return p.fallbackProvider.GetJsonResponse(c, uid, request)
+}
 
-	if fallbackLLMConfig.LLMProvider == settings.OpenAILLMProvider && request != nil && !request.Stream {
-		fallbackRequestCopy := *request
-		fallbackRequestCopy.Stream = true
-		fallbackRequest = &fallbackRequestCopy
+// StreamTextResponse retries with the fallback only if the primary fails
+// before emitting any delta, which prevents duplicate or interleaved output.
+func (p *fallbackLargeLanguageModelProvider) StreamTextResponse(c core.Context, uid int64, request *data.LargeLanguageModelRequest, callback data.LargeLanguageModelStreamCallback) (*data.LargeLanguageModelStreamResponse, error) {
+	primaryProvider, ok := p.primaryProvider.(provider.LargeLanguageModelStreamingProvider)
+	if !ok {
+		return nil, errs.ErrInvalidLLMProvider
 	}
 
-	return fallbackProvider.GetJsonResponse(c, uid, fallbackLLMConfig, fallbackRequest)
+	streamed := false
+	trackedCallback := func(deltaType data.LargeLanguageModelStreamDeltaType, delta string) {
+		streamed = true
+		if callback != nil {
+			callback(deltaType, delta)
+		}
+	}
+	response, err := primaryProvider.StreamTextResponse(c, uid, request, trackedCallback)
+	if err == nil || streamed || p.fallbackProvider == nil {
+		return response, err
+	}
+
+	fallbackProvider, ok := p.fallbackProvider.(provider.LargeLanguageModelStreamingProvider)
+	if !ok {
+		return response, err
+	}
+
+	p.logFallback(c, uid, err)
+	return fallbackProvider.StreamTextResponse(c, uid, request, callback)
 }
+
+func (p *fallbackLargeLanguageModelProvider) logFallback(c core.Context, uid int64, err error) {
+	log.Warnf(c, "[large_language_model_provider_container] primary %s provider failed for user \"uid:%d\", retrying with fallback provider, because %s", p.usage, uid, err.Error())
+}
+
+// StreamTextResponseByAIAssistantModel streams a response from the configured
+// AI assistant provider without exposing provider-specific protocols.
+func (l *LargeLanguageModelProviderContainer) StreamTextResponseByAIAssistantModel(c core.Context, uid int64, request *data.LargeLanguageModelRequest, callback data.LargeLanguageModelStreamCallback) (*data.LargeLanguageModelStreamResponse, error) {
+	streamingProvider, ok := l.aiAssistantProvider.(provider.LargeLanguageModelStreamingProvider)
+	if !ok {
+		return nil, errs.ErrInvalidLLMProvider
+	}
+	return streamingProvider.StreamTextResponse(c, uid, request, callback)
+}
+
+var _ provider.LargeLanguageModelStreamingProvider = (*fallbackLargeLanguageModelProvider)(nil)

@@ -31,8 +31,8 @@ type CommonHttpLargeLanguageModelProvider struct {
 }
 
 // GetJsonResponse returns the json response from common http large language model provider
-func (p *CommonHttpLargeLanguageModelProvider) GetJsonResponse(c core.Context, uid int64, currentLLMConfig *settings.LLMConfig, request *data.LargeLanguageModelRequest) (*data.LargeLanguageModelTextualResponse, error) {
-	response, err := p.getTextualResponse(c, uid, currentLLMConfig, request, data.LARGE_LANGUAGE_MODEL_RESPONSE_FORMAT_JSON)
+func (p *CommonHttpLargeLanguageModelProvider) GetJsonResponse(c core.Context, uid int64, request *data.LargeLanguageModelRequest) (*data.LargeLanguageModelTextualResponse, error) {
+	response, err := p.getTextualResponse(c, uid, request, data.LARGE_LANGUAGE_MODEL_RESPONSE_FORMAT_JSON)
 
 	if err != nil {
 		return nil, err
@@ -49,7 +49,7 @@ func (p *CommonHttpLargeLanguageModelProvider) GetJsonResponse(c core.Context, u
 	return response, nil
 }
 
-func (p *CommonHttpLargeLanguageModelProvider) getTextualResponse(c core.Context, uid int64, currentLLMConfig *settings.LLMConfig, request *data.LargeLanguageModelRequest, responseType data.LargeLanguageModelResponseFormat) (*data.LargeLanguageModelTextualResponse, error) {
+func (p *CommonHttpLargeLanguageModelProvider) getTextualResponse(c core.Context, uid int64, request *data.LargeLanguageModelRequest, responseType data.LargeLanguageModelResponseFormat) (*data.LargeLanguageModelTextualResponse, error) {
 	httpRequest, err := p.adapter.BuildTextualRequest(c, uid, request, responseType)
 
 	if err != nil {

@@ -32,3 +32,20 @@ type LargeLanguageModelRequest struct {
 type LargeLanguageModelTextualResponse struct {
 	Content string
 }
+
+type LargeLanguageModelStreamDeltaType byte
+
+const (
+	LARGE_LANGUAGE_MODEL_STREAM_DELTA_TYPE_REPLY LargeLanguageModelStreamDeltaType = iota
+	LARGE_LANGUAGE_MODEL_STREAM_DELTA_TYPE_THINKING
+)
+
+// LargeLanguageModelStreamResponse represents the complete content collected
+// while a provider streams deltas to the caller.
+type LargeLanguageModelStreamResponse struct {
+	Content  string
+	Thinking string
+}
+
+// LargeLanguageModelStreamCallback receives each non-empty streamed delta.
+type LargeLanguageModelStreamCallback func(deltaType LargeLanguageModelStreamDeltaType, delta string)

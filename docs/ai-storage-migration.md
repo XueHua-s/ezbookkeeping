@@ -63,7 +63,7 @@
 - `[security] secret_key`：签名密钥（不一致会导致会话/令牌行为变化）
 - `[uuid] server_id`：多实例场景必须保证唯一性
 - `[auth]`：OAuth2/OIDC 相关配置
-- `[llm]`、`[llm_image_recognition]`、`[llm_assistant]`：AI 功能相关配置
+- `[llm]`、`[llm_image_recognition]`、`[llm_image_recognition_fallback]`、`[llm_assistant]`、`[llm_assistant_fallback]`：AI 功能相关配置
 
 AI 配置建议重点核对（防止“能启动但行为偏差”）：
 
@@ -71,11 +71,25 @@ AI 配置建议重点核对（防止“能启动但行为偏差”）：
 - `llm_image_recognition.openai_api_key`
 - `llm_image_recognition.openai_base_url`
 - `llm_image_recognition.openai_model_id`
+- `llm_image_recognition.chat_completions_stream`
+- `llm_image_recognition_fallback.llm_provider`
+- `llm_image_recognition_fallback.openai_api_key`
+- `llm_image_recognition_fallback.openai_base_url`
+- `llm_image_recognition_fallback.openai_model_id`
+- `llm_image_recognition_fallback.chat_completions_stream`
 - `llm_assistant.llm_provider`
 - `llm_assistant.openai_api_key`
 - `llm_assistant.openai_base_url`
 - `llm_assistant.openai_model_id`
 - `llm_assistant.openai_embedding_model_id`
+- `llm_assistant.chat_completions_stream`
+- `llm_assistant_fallback.llm_provider`
+- `llm_assistant_fallback.openai_api_key`
+- `llm_assistant_fallback.openai_base_url`
+- `llm_assistant_fallback.openai_model_id`
+- `llm_assistant_fallback.chat_completions_stream`
+
+`llm_assistant_fallback` 只接管对话模型请求，不接管 embedding；向量检索始终使用 `llm_assistant` 中的 embedding 配置。若 OpenAI 兼容上游只接受流式 Chat Completions，请显式设置对应 section 的 `chat_completions_stream = true`。
 
 同时检查环境变量覆盖：
 

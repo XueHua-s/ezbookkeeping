@@ -34,6 +34,24 @@ func TestCommonOpenAIChatCompletionsAPILargeLanguageModelAdapter_buildJsonReques
 	assert.Equal(t, "{\"model\":\"test\",\"stream\":false,\"messages\":[{\"role\":\"system\",\"content\":\"You are a helpful assistant.\"},{\"role\":\"user\",\"content\":\"Hello, how are you?\"}],\"response_format\":{\"type\":\"json_object\"}}", string(bodyBytes))
 }
 
+func TestCommonOpenAIChatCompletionsAPILargeLanguageModelAdapter_buildJsonRequestBody_ForceStream(t *testing.T) {
+	adapter := &CommonOpenAIChatCompletionsAPILargeLanguageModelAdapter{
+		apiProvider: &OpenAIOfficialChatCompletionsAPIProvider{
+			OpenAIModelID: "test",
+		},
+		forceStream: true,
+	}
+
+	bodyBytes, err := adapter.buildJsonRequestBody(core.NewNullContext(), 0, &data.LargeLanguageModelRequest{
+		UserPrompt: []byte("Please reply in json"),
+	}, data.LARGE_LANGUAGE_MODEL_RESPONSE_FORMAT_JSON)
+	assert.NoError(t, err)
+
+	var body map[string]any
+	assert.NoError(t, json.Unmarshal(bodyBytes, &body))
+	assert.Equal(t, true, body["stream"])
+}
+
 func TestCommonOpenAIChatCompletionsAPILargeLanguageModelAdapter_buildJsonRequestBody_ImageUserPrompt(t *testing.T) {
 	adapter := &CommonOpenAIChatCompletionsAPILargeLanguageModelAdapter{
 		apiProvider: &OpenAIOfficialChatCompletionsAPIProvider{

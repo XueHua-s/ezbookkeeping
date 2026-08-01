@@ -259,7 +259,7 @@ func (a *LargeLanguageModelsApi) RecognizeReceiptImageHandler(c *core.WebContext
 		UserPromptContentType: contentType,
 	}
 
-	llmResponse, err := llm.Container.GetJsonResponseByReceiptImageRecognitionModel(c, uid, a.CurrentConfig(), llmRequest)
+	llmResponse, err := llm.Container.GetJsonResponseByReceiptImageRecognitionModel(c, uid, llmRequest)
 
 	if err != nil {
 		log.Errorf(c, "[large_language_models.RecognizeReceiptImageHandler] failed to get llm response user \"uid:%d\", because %s", uid, err.Error())
@@ -369,7 +369,7 @@ func (a *LargeLanguageModelsApi) RecognizeReceiptImageBatchHandler(c *core.WebCo
 			UserPromptContentType: contentType,
 		}
 
-		llmResponse, err := llm.Container.GetJsonResponseByReceiptImageRecognitionModel(c, uid, a.CurrentConfig(), llmRequest)
+		llmResponse, err := llm.Container.GetJsonResponseByReceiptImageRecognitionModel(c, uid, llmRequest)
 
 		if err != nil {
 			log.Errorf(c, "[large_language_models.RecognizeReceiptImageBatchHandler] failed to get llm response for image#%d user \"uid:%d\", because %s", i, uid, err.Error())

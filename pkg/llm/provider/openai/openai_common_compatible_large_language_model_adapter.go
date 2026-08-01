@@ -32,6 +32,7 @@ type OpenAIChatCompletionsAPIProvider interface {
 type CommonOpenAIChatCompletionsAPILargeLanguageModelAdapter struct {
 	common.HttpLargeLanguageModelAdapter
 	apiProvider OpenAIChatCompletionsAPIProvider
+	forceStream bool
 }
 
 // OpenAIMessageRole defines the role of OpenAI chat completions message
@@ -169,6 +170,7 @@ func (p *CommonOpenAIChatCompletionsAPILargeLanguageModelAdapter) parseStreamedT
 	contentBuilder := &strings.Builder{}
 	hasContent := false
 	scanner := bufio.NewScanner(bytes.NewReader(body))
+	scanner.Buffer(make([]byte, 0, 4096), 4*1024*1024)
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -224,7 +226,7 @@ func (p *CommonOpenAIChatCompletionsAPILargeLanguageModelAdapter) buildJsonReque
 
 	chatCompletionsRequest := &OpenAIChatCompletionsRequest{
 		Model:    p.apiProvider.GetModelID(),
-		Stream:   request.Stream,
+		Stream:   request.Stream || p.forceStream,
 		Messages: make([]any, 0, 2),
 	}
 
@@ -247,6 +249,8 @@ func (p *CommonOpenAIChatCompletionsAPILargeLanguageModelAdapter) buildJsonReque
 				},
 			}
 
+			// OpenAI's json_object mode rejects image-only user messages that do not
+			// explicitly mention JSON, even when response_format already requests it.
 			if responseType == data.LARGE_LANGUAGE_MODEL_RESPONSE_FORMAT_JSON && request.ResponseJsonObjectType == nil {
 				imageContents = append(imageContents, &OpenAIChatCompletionsRequestImageContent{
 					Type: "text",
@@ -305,5 +309,6 @@ func (p *CommonOpenAIChatCompletionsAPILargeLanguageModelAdapter) buildJsonReque
 func newCommonOpenAIChatCompletionsAPILargeLanguageModelAdapter(llmConfig *settings.LLMConfig, enableResponseLog bool, apiProvider OpenAIChatCompletionsAPIProvider) provider.LargeLanguageModelProvider {
 	return common.NewCommonHttpLargeLanguageModelProvider(llmConfig, enableResponseLog, &CommonOpenAIChatCompletionsAPILargeLanguageModelAdapter{
 		apiProvider: apiProvider,
+		forceStream: llmConfig.ChatCompletionsStream,
 	})
 }

@@ -249,6 +249,7 @@ type LLMConfig struct {
 	OpenAIAPIKey                        string
 	OpenAIModelID                       string
 	OpenAIEmbeddingModelID              string
+	ChatCompletionsStream               bool
 	OpenAICompatibleBaseURL             string
 	OpenAICompatibleAPIKey              string
 	OpenAICompatibleModelID             string
@@ -948,6 +949,7 @@ func loadLLMConfiguration(configFile *ini.File, sectionName string) (*LLMConfig,
 	llmConfig.OpenAIBaseURL = getConfigItemStringValue(configFile, sectionName, "openai_base_url")
 	llmConfig.OpenAIModelID = getConfigItemStringValue(configFile, sectionName, "openai_model_id")
 	llmConfig.OpenAIEmbeddingModelID = getConfigItemStringValue(configFile, sectionName, "openai_embedding_model_id")
+	llmConfig.ChatCompletionsStream = getConfigItemBoolValue(configFile, sectionName, "chat_completions_stream", false)
 
 	llmConfig.OpenAICompatibleBaseURL = getConfigItemStringValue(configFile, sectionName, "openai_compatible_base_url")
 	llmConfig.OpenAICompatibleAPIKey = getConfigItemStringValue(configFile, sectionName, "openai_compatible_api_key")

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/ini.v1"
 )
 
 func TestLLMConfig_GetOpenAIBaseURL(t *testing.T) {
@@ -35,4 +36,13 @@ func TestGetConfigItemValueFromEnvironment_StripsTrailingLineEndingsFromFile(t *
 
 	t.Setenv(getConfigItemFilePathEnvironmentKey("llm_assistant", "openai_api_key"), filePath)
 	assert.Equal(t, "test-key", getConfigItemValueFromEnvironment("llm_assistant", "openai_api_key"))
+}
+
+func TestLoadLLMConfiguration_ChatCompletionsStream(t *testing.T) {
+	configFile, err := ini.Load([]byte("[llm_test]\nllm_provider = openai\nchat_completions_stream = true\n"))
+	assert.NoError(t, err)
+
+	llmConfig, err := loadLLMConfiguration(configFile, "llm_test")
+	assert.NoError(t, err)
+	assert.True(t, llmConfig.ChatCompletionsStream)
 }

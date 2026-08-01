@@ -3,8 +3,8 @@
 ## Configuration
 
 - Global AI flags: `conf/ezbookkeeping.ini` section `[llm]`.
-- Receipt recognition provider config: `[llm_image_recognition]`.
-- Assistant provider and embedding config: `[llm_assistant]`.
+- Receipt recognition provider config: `[llm_image_recognition]`; optional LLM-only fallback: `[llm_image_recognition_fallback]`.
+- Assistant provider and embedding config: `[llm_assistant]`; optional chat-only fallback: `[llm_assistant_fallback]` (embedding never falls back).
 - Config parser and defaults: `pkg/settings/setting.go`.
 
 ## Backend Runtime
