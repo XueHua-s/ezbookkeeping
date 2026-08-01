@@ -51,6 +51,7 @@ const (
 	OpenAIChatCompletionsRequestResponseFormatTypeJsonObject OpenAIChatCompletionsRequestResponseFormatType = "json_object"
 	OpenAIChatCompletionsRequestResponseFormatTypeJsonSchema OpenAIChatCompletionsRequestResponseFormatType = "json_schema"
 	openAIChatCompletionsDefaultJsonSchemaName               string                                         = "structured_output"
+	openAIChatCompletionsJsonObjectInstruction               string                                         = "Return the response as valid json."
 )
 
 // OpenAIChatCompletionsRequest defines the structure of OpenAI chat completions request
@@ -70,7 +71,8 @@ type OpenAIChatCompletionsRequestMessage[T string | []*OpenAIChatCompletionsRequ
 // OpenAIChatCompletionsRequestImageContent defines the structure of OpenAI chat completions request image content
 type OpenAIChatCompletionsRequestImageContent struct {
 	Type     string                                `json:"type"`
-	ImageURL *OpenAIChatCompletionsRequestImageUrl `json:"image_url"`
+	ImageURL *OpenAIChatCompletionsRequestImageUrl `json:"image_url,omitempty"`
+	Text     string                                `json:"text,omitempty"`
 }
 
 // OpenAIChatCompletionsRequestResponseFormat defines the structure of OpenAI chat completions request response format
@@ -236,16 +238,25 @@ func (p *CommonOpenAIChatCompletionsAPILargeLanguageModelAdapter) buildJsonReque
 	if len(request.UserPrompt) > 0 {
 		if request.UserPromptType == data.LARGE_LANGUAGE_MODEL_REQUEST_PROMPT_TYPE_IMAGE_URL {
 			imageBase64Data := "data:" + request.UserPromptContentType + ";base64," + base64.StdEncoding.EncodeToString(request.UserPrompt)
-			chatCompletionsRequest.Messages = append(chatCompletionsRequest.Messages, &OpenAIChatCompletionsRequestMessage[[]*OpenAIChatCompletionsRequestImageContent]{
-				Role: OpenAIMessageRoleUser,
-				Content: []*OpenAIChatCompletionsRequestImageContent{
-					{
-						Type: "image_url",
-						ImageURL: &OpenAIChatCompletionsRequestImageUrl{
-							Url: imageBase64Data,
-						},
+			imageContents := []*OpenAIChatCompletionsRequestImageContent{
+				{
+					Type: "image_url",
+					ImageURL: &OpenAIChatCompletionsRequestImageUrl{
+						Url: imageBase64Data,
 					},
 				},
+			}
+
+			if responseType == data.LARGE_LANGUAGE_MODEL_RESPONSE_FORMAT_JSON && request.ResponseJsonObjectType == nil {
+				imageContents = append(imageContents, &OpenAIChatCompletionsRequestImageContent{
+					Type: "text",
+					Text: openAIChatCompletionsJsonObjectInstruction,
+				})
+			}
+
+			chatCompletionsRequest.Messages = append(chatCompletionsRequest.Messages, &OpenAIChatCompletionsRequestMessage[[]*OpenAIChatCompletionsRequestImageContent]{
+				Role:    OpenAIMessageRoleUser,
+				Content: imageContents,
 			})
 		} else {
 			chatCompletionsRequest.Messages = append(chatCompletionsRequest.Messages, &OpenAIChatCompletionsRequestMessage[string]{

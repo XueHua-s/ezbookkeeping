@@ -55,7 +55,7 @@ func TestCommonOpenAIChatCompletionsAPILargeLanguageModelAdapter_buildJsonReques
 	err = json.Unmarshal(bodyBytes, &body)
 	assert.Nil(t, err)
 
-	assert.Equal(t, "{\"model\":\"test\",\"stream\":false,\"messages\":[{\"role\":\"system\",\"content\":\"What's in this image?\"},{\"role\":\"user\",\"content\":[{\"type\":\"image_url\",\"image_url\":{\"url\":\"data:image/png;base64,ZmFrZWRhdGE=\"}}]}],\"response_format\":{\"type\":\"json_object\"}}", string(bodyBytes))
+	assert.Equal(t, "{\"model\":\"test\",\"stream\":false,\"messages\":[{\"role\":\"system\",\"content\":\"What's in this image?\"},{\"role\":\"user\",\"content\":[{\"type\":\"image_url\",\"image_url\":{\"url\":\"data:image/png;base64,ZmFrZWRhdGE=\"}},{\"type\":\"text\",\"text\":\"Return the response as valid json.\"}]}],\"response_format\":{\"type\":\"json_object\"}}", string(bodyBytes))
 }
 
 func TestCommonOpenAIChatCompletionsAPILargeLanguageModelAdapter_buildJsonRequestBody_WithJsonSchema(t *testing.T) {
