@@ -175,8 +175,13 @@ func (a *LargeLanguageModelsApi) AssistantChatStreamHandler(c *core.WebContext) 
 		return nil
 	}
 
-	llmConfig := currentConfig.AIAssistantLLMConfig
-	streamErr := a.streamAIAssistantResponseFromOpenAI(c, c.GetCurrentUid(), llmConfig, assistantContext)
+	uid := c.GetCurrentUid()
+	streamed, streamErr := a.streamAIAssistantResponseFromOpenAI(c, uid, currentConfig.AIAssistantLLMConfig, assistantContext)
+
+	if streamErr != nil && !streamed && currentConfig.AIAssistantFallbackLLMConfig != nil && currentConfig.AIAssistantFallbackLLMConfig.LLMProvider == settings.OpenAILLMProvider {
+		log.Warnf(c, "[large_language_models.AssistantChatStreamHandler] primary ai assistant provider failed for user \"uid:%d\", retrying with fallback provider, because %s", uid, streamErr.Error())
+		_, streamErr = a.streamAIAssistantResponseFromOpenAI(c, uid, currentConfig.AIAssistantFallbackLLMConfig, assistantContext)
+	}
 
 	if streamErr != nil {
 		return streamErr
@@ -402,16 +407,16 @@ func getAIAssistantKnowledgeCoverageStartUnixTime(clientTimezone *time.Location)
 	return coverageStartTime.Unix()
 }
 
-func (a *LargeLanguageModelsApi) streamAIAssistantResponseFromOpenAI(c *core.WebContext, uid int64, llmConfig *settings.LLMConfig, assistantContext *aiAssistantPreparedPromptContext) *errs.Error {
+func (a *LargeLanguageModelsApi) streamAIAssistantResponseFromOpenAI(c *core.WebContext, uid int64, llmConfig *settings.LLMConfig, assistantContext *aiAssistantPreparedPromptContext) (bool, *errs.Error) {
 	if llmConfig == nil {
-		return errs.ErrOperationFailed
+		return false, errs.ErrOperationFailed
 	}
 
 	openAIAPIKey := strings.TrimSpace(llmConfig.OpenAIAPIKey)
 	openAIModelID := strings.TrimSpace(llmConfig.OpenAIModelID)
 
 	if openAIAPIKey == "" || openAIModelID == "" {
-		return errs.ErrFailedToRequestRemoteApi
+		return false, errs.ErrFailedToRequestRemoteApi
 	}
 
 	requestBody := &openAIResponsesRequest{
@@ -429,14 +434,14 @@ func (a *LargeLanguageModelsApi) streamAIAssistantResponseFromOpenAI(c *core.Web
 
 	if marshalErr != nil {
 		log.Errorf(c, "[large_language_models.streamAIAssistantResponseFromOpenAI] failed to marshal request for user \"uid:%d\", because %s", uid, marshalErr.Error())
-		return errs.ErrOperationFailed
+		return false, errs.ErrOperationFailed
 	}
 
 	httpRequest, requestErr := http.NewRequest("POST", llmConfig.GetOpenAIEndpointURL(aiAssistantOpenAIResponsesPath), bytes.NewReader(requestBodyBytes))
 
 	if requestErr != nil {
 		log.Errorf(c, "[large_language_models.streamAIAssistantResponseFromOpenAI] failed to build request for user \"uid:%d\", because %s", uid, requestErr.Error())
-		return errs.ErrFailedToRequestRemoteApi
+		return false, errs.ErrFailedToRequestRemoteApi
 	}
 
 	httpRequest.Header.Set("Authorization", "Bearer "+openAIAPIKey)
@@ -451,7 +456,7 @@ func (a *LargeLanguageModelsApi) streamAIAssistantResponseFromOpenAI(c *core.Web
 
 	if responseErr != nil {
 		log.Errorf(c, "[large_language_models.streamAIAssistantResponseFromOpenAI] failed to request response stream for user \"uid:%d\", because %s", uid, responseErr.Error())
-		return errs.ErrFailedToRequestRemoteApi
+		return false, errs.ErrFailedToRequestRemoteApi
 	}
 
 	defer response.Body.Close()
@@ -459,7 +464,7 @@ func (a *LargeLanguageModelsApi) streamAIAssistantResponseFromOpenAI(c *core.Web
 	if response.StatusCode != http.StatusOK {
 		responseBody, _ := io.ReadAll(response.Body)
 		log.Errorf(c, "[large_language_models.streamAIAssistantResponseFromOpenAI] failed to request response stream for user \"uid:%d\", because response code is %d, response is %s", uid, response.StatusCode, string(responseBody))
-		return errs.ErrFailedToRequestRemoteApi
+		return false, errs.ErrFailedToRequestRemoteApi
 	}
 
 	replyBuilder := &strings.Builder{}
@@ -497,7 +502,7 @@ func (a *LargeLanguageModelsApi) streamAIAssistantResponseFromOpenAI(c *core.Web
 			eventErr := processCurrentEvent()
 
 			if eventErr != nil {
-				return eventErr
+				return replyBuilder.Len() > 0 || thinkingBuilder.Len() > 0, eventErr
 			}
 
 			if streamDone {
@@ -516,14 +521,14 @@ func (a *LargeLanguageModelsApi) streamAIAssistantResponseFromOpenAI(c *core.Web
 
 	if scanErr := scanner.Err(); scanErr != nil {
 		log.Errorf(c, "[large_language_models.streamAIAssistantResponseFromOpenAI] failed to read response stream for user \"uid:%d\", because %s", uid, scanErr.Error())
-		return errs.ErrFailedToRequestRemoteApi
+		return replyBuilder.Len() > 0 || thinkingBuilder.Len() > 0, errs.ErrFailedToRequestRemoteApi
 	}
 
 	if !streamDone {
 		eventErr := processCurrentEvent()
 
 		if eventErr != nil {
-			return eventErr
+			return replyBuilder.Len() > 0 || thinkingBuilder.Len() > 0, eventErr
 		}
 	}
 
@@ -541,7 +546,7 @@ func (a *LargeLanguageModelsApi) streamAIAssistantResponseFromOpenAI(c *core.Web
 		Thinking: thinkingBuilder.String(),
 	})
 
-	return nil
+	return true, nil
 }
 
 func (a *LargeLanguageModelsApi) processOpenAIResponseStreamEvent(c *core.WebContext, uid int64, eventData string, replyBuilder *strings.Builder, thinkingBuilder *strings.Builder) (bool, *errs.Error) {

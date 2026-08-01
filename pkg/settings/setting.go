@@ -372,8 +372,10 @@ type Config struct {
 	EnableAIAssistant                 bool
 
 	// Large Language Model for Receipt Image Recognition
-	ReceiptImageRecognitionLLMConfig *LLMConfig
-	AIAssistantLLMConfig             *LLMConfig
+	ReceiptImageRecognitionLLMConfig         *LLMConfig
+	ReceiptImageRecognitionFallbackLLMConfig *LLMConfig
+	AIAssistantLLMConfig                     *LLMConfig
+	AIAssistantFallbackLLMConfig             *LLMConfig
 
 	// Uuid
 	UuidGeneratorType string
@@ -554,20 +556,36 @@ func LoadConfiguration(configFilePath string) (*Config, error) {
 		return nil, err
 	}
 
+	config.ReceiptImageRecognitionFallbackLLMConfig, err = loadLLMConfiguration(cfgFile, "llm_image_recognition_fallback")
+
+	if err != nil {
+		return nil, err
+	}
+
 	config.AIAssistantLLMConfig, err = loadLLMConfiguration(cfgFile, "llm_assistant")
 
 	if err != nil {
 		return nil, err
 	}
 
-	if config.AIAssistantLLMConfig != nil && config.AIAssistantLLMConfig.LLMProvider == OpenAILLMProvider {
-		if config.AIAssistantLLMConfig.OpenAIModelID == "" {
-			config.AIAssistantLLMConfig.OpenAIModelID = defaultAIAssistantOpenAIModelID
+	config.AIAssistantFallbackLLMConfig, err = loadLLMConfiguration(cfgFile, "llm_assistant_fallback")
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, assistantLLMConfig := range []*LLMConfig{config.AIAssistantLLMConfig, config.AIAssistantFallbackLLMConfig} {
+		if assistantLLMConfig == nil || assistantLLMConfig.LLMProvider != OpenAILLMProvider {
+			continue
 		}
 
-		if config.AIAssistantLLMConfig.OpenAIEmbeddingModelID == "" {
-			config.AIAssistantLLMConfig.OpenAIEmbeddingModelID = defaultAIAssistantOpenAIEmbeddingModelID
+		if assistantLLMConfig.OpenAIModelID == "" {
+			assistantLLMConfig.OpenAIModelID = defaultAIAssistantOpenAIModelID
 		}
+	}
+
+	if config.AIAssistantLLMConfig != nil && config.AIAssistantLLMConfig.LLMProvider == OpenAILLMProvider && config.AIAssistantLLMConfig.OpenAIEmbeddingModelID == "" {
+		config.AIAssistantLLMConfig.OpenAIEmbeddingModelID = defaultAIAssistantOpenAIEmbeddingModelID
 	}
 
 	err = loadUuidConfiguration(config, cfgFile, "uuid")
