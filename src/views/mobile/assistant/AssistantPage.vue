@@ -43,7 +43,7 @@
                                  v-for="reference in message.references">
                                 <div>{{ reference.timeText || '-' }}</div>
                                 <div>{{ reference.categoryName || tt('Uncategorized') }}</div>
-                                <div>{{ formatAmountToLocalizedNumeralsWithCurrency(reference.sourceAmount, reference.currency || false) }}</div>
+                                <div>{{ formatAmountToLocalizedNumeralsWithCurrency(parseBigDecimal(reference.sourceAmount), reference.currency || false) }}</div>
                             </div>
                         </div>
                     </div>
@@ -81,6 +81,7 @@ import AssistantMarkdownContent from '@/components/common/AssistantMarkdownConte
 import { nextTick, useTemplateRef, watch } from 'vue';
 
 import { useI18n } from '@/locales/helpers.ts';
+import { parseBigDecimal } from '@/lib/numeral.ts';
 import { useI18nUIComponents } from '@/lib/ui/mobile.ts';
 import { useAssistantPageBase } from '@/views/base/assistant/AssistantPageBase.ts';
 

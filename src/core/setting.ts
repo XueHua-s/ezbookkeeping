@@ -1,6 +1,8 @@
 import { type WeekDayValue, WeekDay } from './datetime.ts';
 import { TimezoneTypeForStatistics } from './timezone.ts';
 import { CurrencySortingType } from './currency.ts';
+import { KeywordMatchMode } from './text.ts';
+import { ImageUploadQualityType } from './image.ts';
 import {
     TransactionQuickSaveButtonStyle,
     TransactionQuickAddButtonActionType
@@ -12,7 +14,9 @@ import {
     ChartSortingType,
     DEFAULT_CATEGORICAL_CHART_DATA_RANGE,
     DEFAULT_TREND_CHART_DATA_RANGE,
-    DEFAULT_ASSET_TRENDS_CHART_DATA_RANGE
+    DEFAULT_ASSET_TRENDS_CHART_DATA_RANGE,
+    DEFAULT_RECONCILIATION_STATEMENT_DATE_RANGE_IN_DESKTOP,
+    DEFAULT_RECONCILIATION_STATEMENT_DATE_RANGE_IN_MOBILE,
 } from './statistics.ts';
 import { DEFAULT_TRANSACTION_EXPLORER_DATE_RANGE } from './explorer.ts';
 import { DEFAULT_CURRENCY_CODE } from '@/consts/currency.ts';
@@ -39,9 +43,12 @@ export interface ApplicationSettings extends BaseApplicationSetting {
     // Application Lock
     applicationLock: boolean;
     applicationLockWebAuthn: boolean;
+    // General Settings
+    chartColors: string;
     // Navigation Bar
     showAddTransactionButtonInDesktopNavbar: boolean;
     // Overview Page
+    desktopOverviewPageLayout: string;
     showAmountInHomePage: boolean;
     timezoneUsedForStatisticsInHomePage: number;
     overviewAccountFilterInHomePage: Record<string, boolean>;
@@ -52,10 +59,16 @@ export interface ApplicationSettings extends BaseApplicationSetting {
     itemsCountInTransactionListPage: number;
     showTotalAmountInTransactionListPage: boolean;
     showTagInTransactionListPage: boolean;
+    defaultKeywordMatchModeInTransactionListPage: number;
     // Transaction Edit Page
     autoSaveTransactionDraft: string;
     autoGetCurrentGeoLocation: boolean;
     alwaysShowTransactionPicturesInMobileTransactionEditPage: boolean;
+    transactionPictureQuality: number;
+    // AI Clipboard Text Recognition
+    alwaysRequireConfirmationOfClipboardContentBeforeSubmission: boolean;
+    // AI Image Recognition
+    autoUploadTransactionPictureForAIRecognition: boolean;
     // Import Transaction Dialog
     rememberLastSelectedFileTypeInImportTransactionDialog: boolean;
     lastSelectedFileTypeInImportTransactionDialog: string;
@@ -66,6 +79,8 @@ export interface ApplicationSettings extends BaseApplicationSetting {
     totalAmountExcludeAccountIds: Record<string, boolean>;
     accountCategoryOrders: string;
     hideCategoriesWithoutAccounts: boolean;
+    reconciliationStatementButtonDefaultDateRangeTypeInDesktop: number;
+    reconciliationStatementPageDefaultDateRangeTypeInMobile: number;
     // Exchange Rates Data Page
     currencySortByInExchangeRatesPage: number;
     // Browser Cache Management
@@ -77,6 +92,7 @@ export interface ApplicationSettings extends BaseApplicationSetting {
         defaultTimezoneType: number;
         defaultAccountFilter: Record<string, boolean>;
         defaultTransactionCategoryFilter: Record<string, boolean>;
+        defaultKeywordMatchMode: number;
         defaultSortingType: number;
         defaultCategoricalChartType: number;
         defaultCategoricalChartDataRangeType: number;
@@ -117,9 +133,12 @@ export const ALL_ALLOWED_CLOUD_SYNC_APP_SETTING_KEY_TYPES: Record<string, UserAp
     // Basic Settings
     'showAccountBalance': UserApplicationCloudSettingType.Boolean,
     'autoUpdateExchangeRatesData': UserApplicationCloudSettingType.Boolean,
+    // General Settings
+    'chartColors': UserApplicationCloudSettingType.String,
     // Navigation Bar
     'showAddTransactionButtonInDesktopNavbar': UserApplicationCloudSettingType.Boolean,
     // Overview Page
+    'desktopOverviewPageLayout': UserApplicationCloudSettingType.String,
     'showAmountInHomePage': UserApplicationCloudSettingType.Boolean,
     'timezoneUsedForStatisticsInHomePage': UserApplicationCloudSettingType.Number,
     'overviewAccountFilterInHomePage': UserApplicationCloudSettingType.StringBooleanMap,
@@ -128,12 +147,18 @@ export const ALL_ALLOWED_CLOUD_SYNC_APP_SETTING_KEY_TYPES: Record<string, UserAp
     'itemsCountInTransactionListPage': UserApplicationCloudSettingType.Number,
     'showTotalAmountInTransactionListPage': UserApplicationCloudSettingType.Boolean,
     'showTagInTransactionListPage': UserApplicationCloudSettingType.Boolean,
+    'defaultKeywordMatchModeInTransactionListPage': UserApplicationCloudSettingType.Number,
     // Transaction Edit Page
     'quickSaveButtonStyleInMobileTransactionListPage': UserApplicationCloudSettingType.Number,
     'quickAddButtonActionInMobileTransactionEditPage': UserApplicationCloudSettingType.Number,
     'autoSaveTransactionDraft': UserApplicationCloudSettingType.String,
     'autoGetCurrentGeoLocation': UserApplicationCloudSettingType.Boolean,
     'alwaysShowTransactionPicturesInMobileTransactionEditPage': UserApplicationCloudSettingType.Boolean,
+    'transactionPictureQuality': UserApplicationCloudSettingType.Number,
+    // AI Clipboard Text Recognition
+    'alwaysRequireConfirmationOfClipboardContentBeforeSubmission': UserApplicationCloudSettingType.Boolean,
+    // AI Image Recognition
+    'autoUploadTransactionPictureForAIRecognition': UserApplicationCloudSettingType.Boolean,
     // Import Transaction Dialog
     'rememberLastSelectedFileTypeInImportTransactionDialog': UserApplicationCloudSettingType.Boolean,
     'lastSelectedFileTypeInImportTransactionDialog': UserApplicationCloudSettingType.String,
@@ -144,6 +169,8 @@ export const ALL_ALLOWED_CLOUD_SYNC_APP_SETTING_KEY_TYPES: Record<string, UserAp
     'totalAmountExcludeAccountIds': UserApplicationCloudSettingType.StringBooleanMap,
     'accountCategoryOrders': UserApplicationCloudSettingType.String,
     'hideCategoriesWithoutAccounts': UserApplicationCloudSettingType.Boolean,
+    'reconciliationStatementButtonDefaultDateRangeTypeInDesktop': UserApplicationCloudSettingType.Number,
+    'reconciliationStatementPageDefaultDateRangeTypeInMobile': UserApplicationCloudSettingType.Number,
     // Exchange Rates Data Page
     'currencySortByInExchangeRatesPage': UserApplicationCloudSettingType.Number,
     // Browser Cache Management
@@ -154,6 +181,7 @@ export const ALL_ALLOWED_CLOUD_SYNC_APP_SETTING_KEY_TYPES: Record<string, UserAp
     'statistics.defaultTimezoneType': UserApplicationCloudSettingType.Number,
     'statistics.defaultAccountFilter': UserApplicationCloudSettingType.StringBooleanMap,
     'statistics.defaultTransactionCategoryFilter': UserApplicationCloudSettingType.StringBooleanMap,
+    'statistics.defaultKeywordMatchMode': UserApplicationCloudSettingType.Number,
     'statistics.defaultSortingType': UserApplicationCloudSettingType.Number,
     'statistics.defaultCategoricalChartType': UserApplicationCloudSettingType.Number,
     'statistics.defaultCategoricalChartDataRangeType': UserApplicationCloudSettingType.Number,
@@ -177,9 +205,12 @@ export const DEFAULT_APPLICATION_SETTINGS: ApplicationSettings = {
     // Application Lock
     applicationLock: false,
     applicationLockWebAuthn: false,
+    // General Settings
+    chartColors: '',
     // Navigation Bar
     showAddTransactionButtonInDesktopNavbar: true,
     // Overview Page
+    desktopOverviewPageLayout: '',
     showAmountInHomePage: true,
     timezoneUsedForStatisticsInHomePage: TimezoneTypeForStatistics.Default.type,
     overviewAccountFilterInHomePage: {},
@@ -188,12 +219,18 @@ export const DEFAULT_APPLICATION_SETTINGS: ApplicationSettings = {
     itemsCountInTransactionListPage: 15,
     showTotalAmountInTransactionListPage: true,
     showTagInTransactionListPage: true,
+    defaultKeywordMatchModeInTransactionListPage: KeywordMatchMode.Default.type,
     // Transaction Edit Page
     quickSaveButtonStyleInMobileTransactionListPage: TransactionQuickSaveButtonStyle.Default.type,
     quickAddButtonActionInMobileTransactionEditPage: TransactionQuickAddButtonActionType.Default.type,
     autoSaveTransactionDraft: 'disabled',
     autoGetCurrentGeoLocation: false,
     alwaysShowTransactionPicturesInMobileTransactionEditPage: false,
+    transactionPictureQuality: ImageUploadQualityType.Default.type,
+    // AI Clipboard Text Recognition
+    alwaysRequireConfirmationOfClipboardContentBeforeSubmission: true,
+    // AI Image Recognition
+    autoUploadTransactionPictureForAIRecognition: false,
     // Import Transaction Dialog
     rememberLastSelectedFileTypeInImportTransactionDialog: true,
     lastSelectedFileTypeInImportTransactionDialog: '',
@@ -204,6 +241,8 @@ export const DEFAULT_APPLICATION_SETTINGS: ApplicationSettings = {
     totalAmountExcludeAccountIds: {},
     accountCategoryOrders: '',
     hideCategoriesWithoutAccounts: false,
+    reconciliationStatementButtonDefaultDateRangeTypeInDesktop: DEFAULT_RECONCILIATION_STATEMENT_DATE_RANGE_IN_DESKTOP.type,
+    reconciliationStatementPageDefaultDateRangeTypeInMobile: DEFAULT_RECONCILIATION_STATEMENT_DATE_RANGE_IN_MOBILE.type,
     // Exchange Rates Data Page
     currencySortByInExchangeRatesPage: CurrencySortingType.Default.type,
     // Browser Cache Management
@@ -215,6 +254,7 @@ export const DEFAULT_APPLICATION_SETTINGS: ApplicationSettings = {
         defaultTimezoneType: TimezoneTypeForStatistics.Default.type,
         defaultAccountFilter: {},
         defaultTransactionCategoryFilter: {},
+        defaultKeywordMatchMode: KeywordMatchMode.Default.type,
         defaultSortingType: ChartSortingType.Default.type,
         defaultCategoricalChartType: CategoricalChartType.Default.type,
         defaultCategoricalChartDataRangeType: DEFAULT_CATEGORICAL_CHART_DATA_RANGE.type,

@@ -9,7 +9,7 @@
         </f7-navbar>
 
         <f7-block class="no-padding no-margin readonly" :class="fontSizePreviewClassName">
-            <f7-block class="combination-list-wrapper margin-vertical">
+            <f7-block class="combination-list-wrapper margin-vertical-half">
                 <f7-accordion-item>
                     <f7-block-title>
                         <f7-accordion-toggle>
@@ -19,8 +19,8 @@
                                     <template #title>
                                         <small>{{ currentLongYearMonth }}</small>
                                         <small class="transaction-amount-statistics">
-                                            <span class="text-income">{{ `+${formatAmountToLocalizedNumeralsWithCurrency(12345)}` }}</span>
-                                            <span class="text-expense">{{ `-${formatAmountToLocalizedNumeralsWithCurrency(67890)}` }}</span>
+                                            <span class="text-income">{{ `+${formatAmountToLocalizedNumeralsWithCurrency(parseBigDecimal(12345))}` }}</span>
+                                            <span class="text-expense">{{ `-${formatAmountToLocalizedNumeralsWithCurrency(parseBigDecimal(67890))}` }}</span>
                                         </small>
                                         <f7-icon class="combination-list-chevron-icon" f7="chevron_up"></f7-icon>
                                     </template>
@@ -33,8 +33,8 @@
                             <f7-list-item chevron-center class="transaction-info" link="#">
                                 <template #media>
                                     <div class="display-flex flex-direction-column transaction-date">
-                                        <span class="transaction-day full-line flex-direction-column">{{ currentDayOfMonth }}</span>
-                                        <span class="transaction-day-of-week full-line flex-direction-column">{{ currentDayOfWeek }}</span>
+                                        <span class="transaction-day width-100 flex-direction-column">{{ currentDayOfMonth }}</span>
+                                        <span class="transaction-day-of-week width-100 flex-direction-column">{{ currentDayOfWeek }}</span>
                                     </div>
                                 </template>
                                 <template #inner>
@@ -53,7 +53,7 @@
                                                 </div>
                                                 <div class="item-after">
                                                     <div class="transaction-amount">
-                                                        <span>{{ formatAmountToLocalizedNumeralsWithCurrency(12345) }}</span>
+                                                        <span>{{ formatAmountToLocalizedNumeralsWithCurrency(parseBigDecimal(12345)) }}</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -89,7 +89,7 @@
 
         <f7-block class="fontsize-panel no-padding margin-bottom">
             <f7-block strong inset class="no-padding-bottom margin-bottom">
-                <div class="full-line padding-bottom padding-top-half">
+                <div class="width-100 padding-bottom padding-top-half">
                     <div class="display-flex justify-content-space-between">
                         <div class="fontsize-minimum">A</div>
                         <div class="fontsize-maximum">A</div>
@@ -126,6 +126,8 @@ import { useSettingsStore } from '@/stores/setting.ts';
 import { TextDirection } from '@/core/text.ts';
 import { type DateTime } from '@/core/datetime.ts';
 import { FontSize } from '@/core/font.ts';
+
+import { parseBigDecimal } from '@/lib/numeral.ts';
 import { getCurrentDateTime } from '@/lib/datetime.ts';
 import { setAppFontSize, getFontSizePreviewClassName } from '@/lib/ui/mobile.ts';
 

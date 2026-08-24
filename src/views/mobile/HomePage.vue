@@ -161,21 +161,10 @@
                     </div>
                 </template>
             </f7-list-item>
-
             <f7-list-item link="/assistant" chevron-center v-if="isAIAssistantEnabled()">
-                <template #media>
-                    <f7-icon f7="sparkles"></f7-icon>
-                </template>
-                <template #title>
-                    <div class="padding-top-half">
-                        {{ tt('AI Assistant') }}
-                    </div>
-                </template>
-                <template #footer>
-                    <div class="overview-transaction-footer padding-bottom-half">
-                        {{ tt('Private assistant for personal bills and bookkeeping suggestions') }}
-                    </div>
-                </template>
+                <template #media><f7-icon f7="sparkles"></f7-icon></template>
+                <template #title><div class="padding-top-half">{{ tt('AI Assistant') }}</div></template>
+                <template #footer><div class="overview-transaction-footer padding-bottom-half">{{ tt('Private assistant for personal bills and bookkeeping suggestions') }}</div></template>
             </f7-list-item>
         </f7-list>
 
@@ -188,6 +177,7 @@
                 <f7-icon f7="creditcard"></f7-icon>
                 <span class="tabbar-label">{{ tt('Accounts') }}</span>
             </f7-link>
+            <!-- "homepage-add-button" must have the "dragenabled" class, otherwise the popover disappears immediately after the second long press -->
             <f7-link id="homepage-add-button" class="link dragenabled"
                      href="/transaction/add" @taphold="openTransactionTemplatePopover">
                 <f7-icon f7="plus_square" class="ebk-tarbar-big-icon"></f7-icon>
@@ -204,15 +194,24 @@
 
         <f7-popover class="template-popover-menu" target-el="#homepage-add-button"
                     v-model:opened="showTransactionTemplatePopover">
-            <f7-list dividers v-if="allTransactionTemplates">
-                <f7-list-item key="AIImageRecognition" :title="tt('AI Image Recognition')"
-                              @click="showAIReceiptImageRecognitionSheet = true; showTransactionTemplatePopover = false"
+            <f7-list dividers v-if="isTransactionFromAITextRecognitionEnabled() || isTransactionFromAIImageRecognitionEnabled() || (allTransactionTemplates && allTransactionTemplates.length)">
+                <f7-list-item key="AIClipboardTextRecognition" link="#" no-chevron popover-close
+                              :title="tt('AI Clipboard Text Recognition')"
+                              @click="addByRecognizingClipboardText"
+                              v-if="isTransactionFromAITextRecognitionEnabled()">
+                    <template #media>
+                        <f7-icon f7="wand_stars"></f7-icon>
+                    </template>
+                </f7-list-item>
+                <f7-list-item key="AIImageRecognition" link="#" no-chevron popover-close
+                              :title="tt('AI Image Recognition')"
+                              @click="showAIReceiptImageRecognitionSheet = true"
                               v-if="isTransactionFromAIImageRecognitionEnabled()">
                     <template #media>
                         <f7-icon f7="wand_stars"></f7-icon>
                     </template>
                 </f7-list-item>
-                <f7-list-item :key="template.id" :title="template.name"
+                <f7-list-item popover-close :key="template.id" :title="template.name"
                               :link="'/transaction/add?templateId=' + template.id"
                               v-for="template in allTransactionTemplates">
                     <template #media>
@@ -229,15 +228,17 @@
 </template>
 
 <script setup lang="ts">
-import AIImageRecognitionSheet from '@/components/mobile/AIImageRecognitionSheet.vue';
+import AIImageRecognitionSheet, { type AIImageRecognitionResult } from '@/components/mobile/AIImageRecognitionSheet.vue';
 
 import { ref, computed, useTemplateRef } from 'vue';
 import type { Router } from 'framework7/types';
 
 import { useI18n } from '@/locales/helpers.ts';
-import { useI18nUIComponents } from '@/lib/ui/mobile.ts';
-import { useHomePageBase } from '@/views/base/HomePageBase.ts';
+import { useI18nUIComponents, isiOS } from '@/lib/ui/mobile.ts';
+import { useAssetSummaryWidgetBase } from '@/views/base/overview/AssetSummaryWidgetBase.ts';
+import { usePeriodStatisticsWidgetBase } from '@/views/base/overview/PeriodStatisticsWidgetBase.ts';
 
+import { useSettingsStore } from '@/stores/setting.ts';
 import { useAccountsStore } from '@/stores/account.ts';
 import { useTransactionCategoriesStore } from '@/stores/transactionCategory.ts';
 import { useTransactionTemplatesStore } from '@/stores/transactionTemplate.ts';
@@ -246,11 +247,14 @@ import { useOverviewStore } from '@/stores/overview.ts';
 import { DateRange } from '@/core/datetime.ts';
 import { TemplateType } from '@/core/template.ts';
 import { TransactionTemplate } from '@/models/transaction_template.ts';
-import type { RecognizedReceiptImageResponse } from '@/models/large_language_model.ts';
 
+import { isFunction } from '@/lib/common.ts';
 import { isUserLogined, isUserUnlocked } from '@/lib/userstate.ts';
 import { getShareCacheImageBlob } from '@/lib/cache.ts';
-import { isTransactionFromAIImageRecognitionEnabled, isAIAssistantEnabled } from '@/lib/server_settings.ts';
+import {
+    isTransactionFromAITextRecognitionEnabled,
+    isTransactionFromAIImageRecognitionEnabled, isAIAssistantEnabled } from '@/lib/server_settings.ts';
+import logger from '@/lib/logger.ts';
 
 type AIImageRecognitionSheetType = InstanceType<typeof AIImageRecognitionSheet>;
 
@@ -261,14 +265,15 @@ const props = defineProps<{
 const { tt } = useI18n();
 const { showToast } = useI18nUIComponents();
 
+const { showAmountInHomePage } = useAssetSummaryWidgetBase();
 const {
-    showAmountInHomePage,
     displayDateRange,
     transactionOverview,
     getDisplayIncomeAmount,
     getDisplayExpenseAmount
-} = useHomePageBase();
+} = usePeriodStatisticsWidgetBase({});
 
+const settingsStore = useSettingsStore();
 const accountsStore = useAccountsStore();
 const transactionCategoriesStore = useTransactionCategoriesStore();
 const transactionTemplatesStore = useTransactionTemplatesStore();
@@ -340,48 +345,80 @@ function reload(done?: () => void): void {
     });
 }
 
-function onReceiptRecognitionChanged(result: RecognizedReceiptImageResponse): void {
+function addByRecognizingClipboardText(): void {
+    if (navigator.clipboard && isFunction(navigator.clipboard.readText) && !isiOS()) {
+        navigator.clipboard.readText().then(text => {
+            const clipboardText = text && text.trim() ? text.trim() : '';
+            props.f7router.navigate('/transaction/add', {
+                props: {
+                    autoRecognizeClipboardText: clipboardText,
+                }
+            });
+        }).catch(error => {
+            logger.error('failed to read clipboard', error);
+            props.f7router.navigate('/transaction/add', {
+                props: {
+                    autoRecognizeClipboardText: '',
+                }
+            });
+        });
+    } else {
+        props.f7router.navigate('/transaction/add', {
+            props: {
+                autoRecognizeClipboardText: '',
+            }
+        });
+    }
+}
+
+function onReceiptRecognitionChanged(result: AIImageRecognitionResult): void {
+    const recognizedResponse = result.response;
+    const autoUploadRecognizedImage = settingsStore.appSettings.autoUploadTransactionPictureForAIRecognition;
     const params: string[] = [];
 
-    if (result.type) {
-        params.push(`type=${result.type}`);
+    if (recognizedResponse.type) {
+        params.push(`type=${recognizedResponse.type}`);
     }
 
-    if (result.time) {
-        params.push(`time=${result.time}`);
+    if (recognizedResponse.time) {
+        params.push(`time=${recognizedResponse.time}`);
     }
 
-    if (result.categoryId) {
-        params.push(`categoryId=${result.categoryId}`);
+    if (recognizedResponse.categoryId) {
+        params.push(`categoryId=${recognizedResponse.categoryId}`);
     }
 
-    if (result.sourceAccountId) {
-        params.push(`accountId=${result.sourceAccountId}`);
+    if (recognizedResponse.sourceAccountId) {
+        params.push(`accountId=${recognizedResponse.sourceAccountId}`);
     }
 
-    if (result.destinationAccountId) {
-        params.push(`destinationAccountId=${result.destinationAccountId}`);
+    if (recognizedResponse.destinationAccountId) {
+        params.push(`destinationAccountId=${recognizedResponse.destinationAccountId}`);
     }
 
-    if (result.sourceAmount) {
-        params.push(`amount=${result.sourceAmount}`);
+    if (recognizedResponse.sourceAmount) {
+        params.push(`amount=${recognizedResponse.sourceAmount}`);
     }
 
-    if (result.destinationAmount) {
-        params.push(`destinationAmount=${result.destinationAmount}`);
+    if (recognizedResponse.destinationAmount) {
+        params.push(`destinationAmount=${recognizedResponse.destinationAmount}`);
     }
 
-    if (result.tagIds) {
-        params.push(`tagIds=${result.tagIds.join(',')}`);
+    if (recognizedResponse.tagIds) {
+        params.push(`tagIds=${recognizedResponse.tagIds.join(',')}`);
     }
 
-    if (result.comment) {
-        params.push(`comment=${encodeURIComponent(result.comment)}`);
+    if (recognizedResponse.comment) {
+        params.push(`comment=${encodeURIComponent(recognizedResponse.comment)}`);
     }
 
     params.push(`noTransactionDraft=true`);
 
-    props.f7router.navigate(`/transaction/add?${params.join('&')}`);
+    props.f7router.navigate(`/transaction/add?${params.join('&')}`, {
+        props: {
+            autoUploadPicture: autoUploadRecognizedImage ? result.imageFile : undefined,
+        }
+    });
 }
 
 function onPageAfterIn(): void {

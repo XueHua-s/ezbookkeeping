@@ -5,13 +5,20 @@ import { useI18n } from '@/locales/helpers.ts';
 import { useUserStore } from '@/stores/user.ts';
 import { useExchangeRatesStore } from '@/stores/exchangeRates.ts';
 
+import type { BigDecimal } from '@/core/numeral.ts';
+import { TRANSACTION_MIN_AMOUNT, TRANSACTION_MAX_AMOUNT } from '@/consts/transaction.ts';
+
 import type {
     LatestExchangeRate,
     LatestExchangeRateResponse,
     LocalizedLatestExchangeRate
 } from '@/models/exchange_rate.ts';
 
-import { getExchangedAmountByRate } from '@/lib/numeral.ts';
+import {
+    BIG_DECIMAL_ZERO,
+    getExchangedAmountByRate
+} from '@/lib/numeral.ts';
+
 import { parseDateTimeFromUnixTime } from '@/lib/datetime.ts';
 
 export function useExchangeRatesPageBase() {
@@ -40,21 +47,27 @@ export function useExchangeRatesPageBase() {
         return getAllDisplayExchangeRates(exchangeRatesData.value);
     });
 
-    function getConvertedAmount(baseAmount: number | '', fromExchangeRate?: LatestExchangeRate | LocalizedLatestExchangeRate, toExchangeRate?: LatestExchangeRate | LocalizedLatestExchangeRate): number | '' | null {
+    function getConvertedAmount(baseAmount: BigDecimal, fromExchangeRate?: LatestExchangeRate | LocalizedLatestExchangeRate, toExchangeRate?: LatestExchangeRate | LocalizedLatestExchangeRate): BigDecimal | '' | null {
         if (!fromExchangeRate || !toExchangeRate) {
             return '';
         }
 
-        if (baseAmount === '') {
-            return 0;
+        if (!baseAmount) {
+            return BIG_DECIMAL_ZERO;
         }
 
-        return getExchangedAmountByRate(baseAmount as number, fromExchangeRate.rate, toExchangeRate.rate);
+        return getExchangedAmountByRate(baseAmount, fromExchangeRate.rate, toExchangeRate.rate);
     }
 
     function setAsBaseline(currency: string, amount: string): void {
         baseCurrency.value = currency;
         baseAmount.value = parseAmountFromWesternArabicNumerals(amount);
+
+        if (baseAmount.value < TRANSACTION_MIN_AMOUNT) {
+            baseAmount.value = TRANSACTION_MIN_AMOUNT;
+        } else if (baseAmount.value > TRANSACTION_MAX_AMOUNT) {
+            baseAmount.value = TRANSACTION_MAX_AMOUNT;
+        }
     }
 
     return {

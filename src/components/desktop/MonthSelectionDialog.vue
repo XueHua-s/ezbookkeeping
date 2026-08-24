@@ -1,29 +1,25 @@
 <template>
-    <v-dialog class="month-selection-dialog" width="640" :persistent="!!persistent" v-model="showState">
-        <v-card class="pa-sm-1 pa-md-2">
-            <template #title>
-                <h4 class="text-h4">{{ title }}</h4>
+    <v-dialog class="month-selection-dialog" width="480" :persistent="!!persistent" v-model="showState">
+        <one-column-dialog-layout content-class="pa-0"
+                                  :title="title" :cancel-button-title="tt('Cancel')"
+                                  @cancel="cancel">
+            <template #toolbar>
+                <v-btn class="mx-2" density="comfortable" variant="outlined"
+                       :disabled="!monthValue" @click="confirm">{{ tt('OK') }}</v-btn>
             </template>
-            <template #subtitle>
-                <div class="text-body-1 text-wrap mt-2" v-if="hint">
-                    <p>{{ hint }}</p>
+
+            <template #content>
+                <div class="text-body-large text-wrap" v-if="hint">
+                    <span>{{ hint }}</span>
                     <slot></slot>
                 </div>
-            </template>
-            <v-card-text class="w-100 d-flex justify-center">
-                <v-row class="match-height">
+                <v-row>
                     <v-col>
                         <month-picker :is-dark-mode="isDarkMode" v-model="monthValue"></month-picker>
                     </v-col>
                 </v-row>
-            </v-card-text>
-            <v-card-text>
-                <div class="w-100 d-flex justify-center flex-wrap mt-sm-1 mt-md-2 gap-4">
-                    <v-btn :disabled="!monthValue" @click="confirm">{{ tt('OK') }}</v-btn>
-                    <v-btn color="secondary" variant="tonal" @click="cancel">{{ tt('Cancel') }}</v-btn>
-                </div>
-            </v-card-text>
-        </v-card>
+            </template>
+        </one-column-dialog-layout>
     </v-dialog>
 </template>
 
@@ -91,12 +87,14 @@ watch(() => props.show, (newValue) => {
 </script>
 
 <style>
-.month-selection-dialog .dp__preset_ranges {
-    white-space: nowrap !important;
-}
+.month-selection-dialog .dp--main {
+    .dp--menu {
+        border: 0;
+        padding-left: 3px;
+    }
 
-.month-selection-dialog .dp__overlay {
-    width: 100% !important;
-    height: 100% !important;
+    .dp--instance-calendar .dp--overlay.dp--overlay-relative {
+        width: 100% !important;
+    }
 }
 </style>

@@ -10,7 +10,7 @@
             </f7-nav-right>
         </f7-navbar>
 
-        <f7-card
+        <f7-card class="margin-top-half"
             :title="tt('Are you sure you want to move all transactions?')"
             :content="tt('format.misc.moveTransactionsInAccountTip', { fromAccount: fromAccount?.name, toAccount: displayToAccountName })">
         </f7-card>
@@ -31,12 +31,12 @@
             >
                 <two-column-list-item-selection-sheet primary-key-field="id" primary-value-field="category"
                                                       primary-title-field="name" primary-footer-field="displayBalance"
-                                                      primary-icon-field="icon" primary-icon-type="account"
+                                                      primary-icon-field="icon" primary-icon-type-field="iconType" primary-icon-type="account"
                                                       primary-sub-items-field="accounts"
                                                       :primary-title-i18n="true"
                                                       secondary-key-field="id" secondary-value-field="id"
                                                       secondary-title-field="name" secondary-footer-field="displayBalance"
-                                                      secondary-icon-field="icon" secondary-icon-type="account" secondary-color-field="color"
+                                                      secondary-icon-field="icon" secondary-icon-type-field="iconType" secondary-icon-type="account" secondary-color-field="color"
                                                       :enable-filter="true" :filter-placeholder="tt('Find account')" :filter-no-items-text="tt('No available account')"
                                                       :items="allVisibleCategorizedAccounts"
                                                       v-model:show="showAccountSheet"

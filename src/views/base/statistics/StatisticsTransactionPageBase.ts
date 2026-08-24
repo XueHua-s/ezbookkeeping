@@ -7,6 +7,7 @@ import { useUserStore } from '@/stores/user.ts';
 import { type TransactionStatisticsFilter, useStatisticsStore } from '@/stores/statistics.ts';
 
 import type { TypeAndDisplayName } from '@/core/base.ts';
+import type { BigDecimal } from '@/core/numeral.ts';
 import { type LocalizedDateRange, type WeekDayValue, DateRangeScene, DateRange } from '@/core/datetime.ts';
 import type { ColorStyleValue } from '@/core/color.ts';
 import {
@@ -63,11 +64,11 @@ export function useStatisticsTransactionPageBase() {
 
     const allDateRanges = computed<LocalizedDateRange[]>(() => {
         if (analysisType.value === StatisticsAnalysisType.CategoricalAnalysis) {
-            return getAllDateRanges(DateRangeScene.Normal, true);
+            return getAllDateRanges(DateRangeScene.Normal, { includeCustom: true });
         } else if (analysisType.value === StatisticsAnalysisType.TrendAnalysis) {
-            return getAllDateRanges(DateRangeScene.TrendAnalysis, true);
+            return getAllDateRanges(DateRangeScene.TrendAnalysis, { includeCustom: true });
         } else if (analysisType.value === StatisticsAnalysisType.AssetTrends) {
-            return getAllDateRanges(DateRangeScene.AssetTrends, true);
+            return getAllDateRanges(DateRangeScene.AssetTrends, { includeCustom: true });
         } else {
             return [];
         }
@@ -326,7 +327,7 @@ export function useStatisticsTransactionPageBase() {
         }
     }
 
-    function getDisplayAmount(amount: number, currency: string, textLimit?: number): string {
+    function getDisplayAmount(amount: BigDecimal, currency: string, textLimit?: number): string {
         const finalAmount = formatAmountToLocalizedNumeralsWithCurrency(amount, currency);
 
         if (!showAccountBalance.value) {

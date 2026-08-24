@@ -35,15 +35,6 @@ type CommonOpenAIChatCompletionsAPILargeLanguageModelAdapter struct {
 	forceStream bool
 }
 
-// OpenAIMessageRole defines the role of OpenAI chat completions message
-type OpenAIMessageRole string
-
-// OpenAI Message Roles
-const (
-	OpenAIMessageRoleSystem OpenAIMessageRole = "system"
-	OpenAIMessageRoleUser   OpenAIMessageRole = "user"
-)
-
 // OpenAIChatCompletionsRequestResponseFormatType defines the type of OpenAI chat completions request response format
 type OpenAIChatCompletionsRequestResponseFormatType string
 

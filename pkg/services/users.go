@@ -234,7 +234,7 @@ func (s *UserService) CreateUser(c core.Context, user *models.User, noPassword b
 }
 
 // UpdateUser saves an existed user model to database
-func (s *UserService) UpdateUser(c core.Context, user *models.User, modifyUserLanguage bool) (keyProfileUpdated bool, emailSetToUnverified bool, err error) {
+func (s *UserService) UpdateUser(c core.Context, user *models.User, modifyUserLanguage bool, modifyUseLastReconciledTime bool) (keyProfileUpdated bool, emailSetToUnverified bool, err error) {
 	if user.Uid <= 0 {
 		return false, false, errs.ErrUserIdInvalid
 	}
@@ -277,7 +277,11 @@ func (s *UserService) UpdateUser(c core.Context, user *models.User, modifyUserLa
 		updateCols = append(updateCols, "default_account_id")
 	}
 
-	if models.TRANSACTION_EDIT_SCOPE_NONE <= user.TransactionEditScope && user.TransactionEditScope <= models.TRANSACTION_EDIT_SCOPE_THIS_YEAR_OR_LATER {
+	if modifyUseLastReconciledTime {
+		updateCols = append(updateCols, "use_last_reconciled_time")
+	}
+
+	if models.TRANSACTION_EDIT_SCOPE_NONE <= user.TransactionEditScope && user.TransactionEditScope <= models.TRANSACTION_EDIT_SCOPE_LAST_RECONCILED_TIME_OR_LATER {
 		updateCols = append(updateCols, "transaction_edit_scope")
 	}
 

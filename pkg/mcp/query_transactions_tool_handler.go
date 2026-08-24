@@ -14,14 +14,17 @@ import (
 	"github.com/mayswind/ezbookkeeping/pkg/utils"
 )
 
+const pageCountForLoadTransactions = 1000
+
 // MCPQueryTransactionsRequest represents all parameters of the query transactions request
 type MCPQueryTransactionsRequest struct {
 	StartTime             string `json:"start_time" jsonschema:"format=date-time" jsonschema_description:"Start time for the query in RFC 3339 format (e.g. 2023-01-01T12:00:00Z)"`
 	EndTime               string `json:"end_time" jsonschema:"format=date-time" jsonschema_description:"End time for the query in RFC 3339 format or (e.g. 2023-01-01T12:00:00Z)"`
-	Type                  string `json:"type,omitempty" jsonschema:"enum=income,enum=expense,enum=transfer" jsonschema_description:"Transaction type to filter by (income, expense, transfer) (optional)"`
+	Type                  string `json:"type,omitempty" jsonschema:"enum=income,enum=expense,enum=transfer,enum=balance_modification" jsonschema_description:"Transaction type to filter by (income, expense, transfer, balance_modification) (optional)"`
 	SecondaryCategoryName string `json:"category_name,omitempty" jsonschema_description:"Primary or secondary category name to filter transactions by (optional)"`
 	AccountName           string `json:"account_name,omitempty" jsonschema_description:"Account name to filter transactions by (optional)"`
 	Keyword               string `json:"keyword,omitempty" jsonschema_description:"Keyword to search in transaction description (optional)"`
+	MatchMode             string `json:"match_mode,omitempty" jsonschema:"enum=default,enum=ignore_case" jsonschema_description:"Match mode for keyword search (optional, leave empty for database default setting, ignore_case for case-insensitive search)"`
 	Count                 int32  `json:"count,omitempty" jsonschema:"default=100" jsonschema_description:"Maximum number of results to return (default: 100)"`
 	Page                  int32  `json:"page,omitempty" jsonschema:"default=1" jsonschema_description:"Page number for pagination (default: 1)"`
 	ResponseFields        string `json:"response_fields,omitempty" jsonschema_description:"Comma-separated list of optional fields to include in the response (optional, leave empty for all fields, available fields: time, currency, category_name, account_name, comment)"`
@@ -38,7 +41,7 @@ type MCPQueryTransactionsResponse struct {
 // MCPTransactionInfo defines the structure of transaction information
 type MCPTransactionInfo struct {
 	Time                   string `json:"time,omitempty" jsonschema_description:"Time of the transaction in RFC 3339 format (e.g. 2023-01-01T12:00:00Z)"`
-	Type                   string `json:"type" jsonschema:"enum=income,enum=expense,enum=transfer" jsonschema_description:"Transaction type (income, expense, transfer)"`
+	Type                   string `json:"type" jsonschema:"enum=income,enum=expense,enum=transfer,enum=balance_modification" jsonschema_description:"Transaction type (income, expense, transfer, balance_modification)"`
 	Amount                 string `json:"amount" jsonschema_description:"Amount of the transaction in the specified currency"`
 	Currency               string `json:"currency,omitempty" jsonschema_description:"Currency code of the transaction (e.g. USD, EUR)"`
 	SecondaryCategoryName  string `json:"category_name,omitempty" jsonschema_description:"Secondary category name for the transaction"`
@@ -117,12 +120,16 @@ func (h *mcpQueryTransactionsToolHandler) Handle(c *core.WebContext, callToolReq
 		transactionType = models.TRANSACTION_TYPE_INCOME
 	} else if queryTransactionsRequest.Type == transactionTypeTransfer {
 		transactionType = models.TRANSACTION_TYPE_TRANSFER
+	} else if queryTransactionsRequest.Type == transactionTypeModifyBalance {
+		transactionType = models.TRANSACTION_TYPE_MODIFY_BALANCE
+	} else if queryTransactionsRequest.Type != "" {
+		return nil, nil, errs.ErrTransactionTypeInvalid
 	}
 
 	allAccounts, err := services.GetAccountService().GetAllAccountsByUid(c, uid)
 
 	if err != nil {
-		log.Warnf(c, "[add_transaction.Handle] get account error, because %s", err.Error())
+		log.Warnf(c, "[query_transactions_tool_handler.Handle] get account error, because %s", err.Error())
 		return nil, nil, err
 	}
 
@@ -139,7 +146,7 @@ func (h *mcpQueryTransactionsToolHandler) Handle(c *core.WebContext, callToolReq
 	allCategories, err := services.GetTransactionCategoryService().GetAllCategoriesByUid(c, uid, 0, -1)
 
 	if err != nil {
-		log.Warnf(c, "[add_transaction.Handle] get transaction category error, because %s", err.Error())
+		log.Warnf(c, "[query_transactions_tool_handler.Handle] get transaction category error, because %s", err.Error())
 		return nil, nil, err
 	}
 
@@ -153,14 +160,20 @@ func (h *mcpQueryTransactionsToolHandler) Handle(c *core.WebContext, callToolReq
 		}
 	}
 
-	totalCount, err := services.GetTransactionService().GetTransactionCount(c, uid, maxTransactionTime, minTransactionTime, transactionType, filterCategoryIds, filterAccountIds, nil, false, "", queryTransactionsRequest.Keyword)
+	matchModeType := core.MATCH_MODE_DEFAULT
+
+	if queryTransactionsRequest.MatchMode == "ignore_case" {
+		matchModeType = core.MATCH_MODE_IGNORE_CASE
+	}
+
+	totalCount, err := services.GetTransactionService().GetTransactionCount(c, uid, maxTransactionTime, minTransactionTime, transactionType, filterCategoryIds, filterAccountIds, nil, false, "", queryTransactionsRequest.Keyword, matchModeType, false)
 
 	if err != nil {
-		log.Errorf(c, "[transactions.TransactionListHandler] failed to get transaction count for user \"uid:%d\", because %s", uid, err.Error())
+		log.Errorf(c, "[query_transactions_tool_handler.Handle] failed to get transaction count for user \"uid:%d\", because %s", uid, err.Error())
 		return nil, nil, err
 	}
 
-	transactions, err := services.GetTransactionService().GetTransactionsByMaxTime(c, uid, maxTransactionTime, minTransactionTime, transactionType, filterCategoryIds, filterAccountIds, nil, false, "", queryTransactionsRequest.Keyword, queryTransactionsRequest.Page, queryTransactionsRequest.Count, false, true)
+	transactions, err := services.GetTransactionService().GetTransactionsByMaxTimeUpToCount(c, uid, maxTransactionTime, minTransactionTime, transactionType, filterCategoryIds, filterAccountIds, nil, false, "", queryTransactionsRequest.Keyword, matchModeType, false, queryTransactionsRequest.Page, queryTransactionsRequest.Count, pageCountForLoadTransactions, false, true)
 	structuredResponse, response, err := h.createNewMCPQueryTransactionsResponse(c, &queryTransactionsRequest, transactions, totalCount, services.GetAccountService().GetAccountMapByList(allAccounts), services.GetTransactionCategoryService().GetCategoryMapByList(allCategories))
 
 	if err != nil {
@@ -198,6 +211,11 @@ func (h *mcpQueryTransactionsToolHandler) createNewMCPQueryTransactionsResponse(
 			transactionInfo.Type = transactionTypeIncome
 		} else if transaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_OUT {
 			transactionInfo.Type = transactionTypeTransfer
+		} else if transaction.Type == models.TRANSACTION_DB_TYPE_MODIFY_BALANCE {
+			transactionInfo.Type = transactionTypeModifyBalance
+		} else {
+			log.Warnf(c, "[query_transactions_tool_handler.createNewMCPQueryTransactionsResponse] encountered transaction with unexpected type \"%d\" for transaction \"id:%d\"", transaction.Type, transaction.TransactionId)
+			continue
 		}
 
 		if transaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_OUT {

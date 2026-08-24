@@ -1433,6 +1433,28 @@ export function getDateRangeByBillingCycleDateType(dateType: number, firstDayOfW
     };
 }
 
+export function getDateRangeByLastReconciledTimeRangeDateType(dateType: number, lastReconciledTime: number | undefined | null): TimeRangeAndDateType | null {
+    let maxTime = 0;
+    let minTime = 0;
+
+    if (dateType === DateRange.SinceLastReconciledTime.type) { // Since Last Reconciled Time
+        if (lastReconciledTime) {
+            maxTime = getTodayLastUnixTime();
+            minTime = lastReconciledTime;
+        } else {
+            return null;
+        }
+    } else {
+        return null;
+    }
+
+    return {
+        dateType: dateType,
+        maxTime: maxTime,
+        minTime: minTime
+    };
+}
+
 export function getRecentMonthDateRanges(monthCount: number): RecentMonthDateRange[] {
     const recentDateRanges: RecentMonthDateRange[] = [];
     const thisMonthFirstUnixTime = getThisMonthFirstUnixTime();

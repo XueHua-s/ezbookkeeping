@@ -8,6 +8,7 @@ import (
 
 	"github.com/mayswind/ezbookkeeping/pkg/core"
 	"github.com/mayswind/ezbookkeeping/pkg/llm/data"
+	"github.com/mayswind/ezbookkeeping/pkg/settings"
 )
 
 func TestGoogleAILargeLanguageModelAdapter_buildJsonRequestBody_TextualUserPrompt(t *testing.T) {
@@ -23,11 +24,11 @@ func TestGoogleAILargeLanguageModelAdapter_buildJsonRequestBody_TextualUserPromp
 	bodyBytes, err := adapter.buildJsonRequestBody(core.NewNullContext(), 0, request, data.LARGE_LANGUAGE_MODEL_RESPONSE_FORMAT_JSON)
 	assert.Nil(t, err)
 
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.Unmarshal(bodyBytes, &body)
 	assert.Nil(t, err)
 
-	assert.Equal(t, "{\"contents\":[{\"parts\":[{\"text\":\"You are a helpful assistant.\"},{\"text\":\"Hello, how are you?\"}]}]}", string(bodyBytes))
+	assert.Equal(t, "{\"contents\":[{\"parts\":[{\"text\":\"Hello, how are you?\"}]}],\"systemInstruction\":{\"parts\":[{\"text\":\"You are a helpful assistant.\"}]}}", string(bodyBytes))
 }
 
 func TestGoogleAILargeLanguageModelAdapter_buildJsonRequestBody_ImageUserPrompt(t *testing.T) {
@@ -45,11 +46,27 @@ func TestGoogleAILargeLanguageModelAdapter_buildJsonRequestBody_ImageUserPrompt(
 	bodyBytes, err := adapter.buildJsonRequestBody(core.NewNullContext(), 0, request, data.LARGE_LANGUAGE_MODEL_RESPONSE_FORMAT_JSON)
 	assert.Nil(t, err)
 
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.Unmarshal(bodyBytes, &body)
 	assert.Nil(t, err)
 
-	assert.Equal(t, "{\"contents\":[{\"parts\":[{\"text\":\"What's in this image?\"},{\"inlineData\":{\"mimeType\":\"image/png\",\"data\":\"ZmFrZWRhdGE=\"}}]}]}", string(bodyBytes))
+	assert.Equal(t, "{\"contents\":[{\"parts\":[{\"inlineData\":{\"mimeType\":\"image/png\",\"data\":\"ZmFrZWRhdGE=\"}}]}],\"systemInstruction\":{\"parts\":[{\"text\":\"What's in this image?\"}]}}", string(bodyBytes))
+}
+
+func TestGoogleAILargeLanguageModelAdapter_buildJsonRequestBody_ThinkingHighThinkingConfig(t *testing.T) {
+	adapter := &GoogleAILargeLanguageModelAdapter{
+		GoogleAIModelID:       "test",
+		GoogleAIThinkingLevel: settings.LLMThinkingHigh,
+	}
+
+	request := &data.LargeLanguageModelRequest{
+		UserPrompt: []byte("Hello, how are you?"),
+	}
+
+	bodyBytes, err := adapter.buildJsonRequestBody(core.NewNullContext(), 0, request, data.LARGE_LANGUAGE_MODEL_RESPONSE_FORMAT_JSON)
+	assert.Nil(t, err)
+
+	assert.Equal(t, "{\"contents\":[{\"parts\":[{\"text\":\"Hello, how are you?\"}]}],\"generationConfig\":{\"thinkingConfig\":{\"thinkingLevel\":\"HIGH\"}}}", string(bodyBytes))
 }
 
 func TestGoogleAILargeLanguageModelAdapter_ParseTextualResponse_ValidJsonResponse(t *testing.T) {

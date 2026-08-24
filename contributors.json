@@ -10,12 +10,19 @@
         "dshemin",
         "lucdsouza",
         "OuIChien",
-        "RasterCrow"
+        "RasterCrow",
+        "vjsai",
+        "dibuyo",
+        "rhierlmeier"
     ],
     "translators": {
         "de": [
             "chrgm",
-            "1270o1"
+            "1270o1",
+            "martinschilliger"
+        ],
+        "el": [
+            "konet-gr"
         ],
         "en": [],
         "es": [
@@ -31,7 +38,9 @@
             "waron97"
         ],
         "ja": [
-            "tkymmm"
+            "tkymmm",
+            "Mink16",
+            "x0x0b"
         ],
         "kn": [
             "Darshanbm05"
@@ -46,9 +55,13 @@
             "thecodergus",
             "balaios"
         ],
+        "ro": [
+            "gg64nou"
+        ],
         "ru": [
             "artegoser",
-            "dshemin"
+            "dshemin",
+            "zhugaru"
         ],
         "sl": [
             "thehijacker"
@@ -60,10 +73,13 @@
             "natthavat28"
         ],
         "tr": [
-            "aydnykn"
+            "aydnykn",
+            "snizamaddinov"
         ],
         "uk": [
-            "nktlitvinenko"
+            "nktlitvinenko",
+            "grid-pilot",
+            "infinit1ve"
         ],
         "vi": [
             "f97"

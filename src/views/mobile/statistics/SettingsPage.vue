@@ -56,9 +56,61 @@
                 </list-item-selection-popup>
             </f7-list-item>
 
-            <f7-list-item :title="tt('Default Account Filter')" link="/settings/filter/account?type=statisticsDefault"></f7-list-item>
+            <f7-list-item
+                class="item-truncate-after-text"
+                link="#"
+                @click="showDefaultKeywordMatchModePopup = true"
+            >
+                <template #after-title>
+                    <div class="item-actual-title">
+                        <span>{{ tt('Default Keyword Search Matching Mode') }}</span>
+                    </div>
+                </template>
+                <template #after>
+                    {{ findDisplayNameByType(allKeywordMatchModes, defaultKeywordMatchMode) }}
+                </template>
+                <list-item-selection-popup value-type="item"
+                                           key-field="type" value-field="type"
+                                           title-field="displayName"
+                                           :title="tt('Default Keyword Search Matching Mode')"
+                                           :enable-filter="true"
+                                           :filter-placeholder="tt('Matching Mode')"
+                                           :filter-no-items-text="tt('No results')"
+                                           :items="allKeywordMatchModes"
+                                           v-model:show="showDefaultKeywordMatchModePopup"
+                                           v-model="defaultKeywordMatchMode">
+                </list-item-selection-popup>
+            </f7-list-item>
 
-            <f7-list-item :title="tt('Default Transaction Category Filter')" link="/settings/filter/category?type=statisticsDefault"></f7-list-item>
+            <f7-list-item
+                class="item-truncate-after-text"
+                link="/settings/filter/account?type=statisticsDefault"
+                :disabled="!hasAnyAccount">
+                <template #after-title>
+                    <div class="item-actual-title">
+                        <span>{{ tt('Default Account Filter') }}</span>
+                    </div>
+                </template>
+                <template #after>
+                    <f7-preloader v-if="loadingAccounts" />
+                    <div v-else-if="!loadingAccounts">{{ defaultAccountFilterDisplayContent }}</div>
+                </template>
+            </f7-list-item>
+
+            <f7-list-item
+                class="item-truncate-after-text"
+                link="/settings/filter/category?type=statisticsDefault"
+                :disabled="!hasAnyTransactionCategory">
+                <template #after-title>
+                    <div class="item-actual-title">
+                        <span>{{ tt('Default Transaction Category Filter') }}</span>
+                    </div>
+                </template>
+                <template #after>
+                    <f7-preloader v-if="loadingTransactionCategories" />
+                    <div v-else-if="!loadingTransactionCategories">{{ defaultTransactionCategoryFilterDisplayContent }}</div>
+                </template>
+            </f7-list-item>
 
             <f7-list-item
                 class="item-truncate-after-text"
@@ -203,15 +255,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 
 import { useI18n } from '@/locales/helpers.ts';
+import { useI18nUIComponents } from '@/lib/ui/mobile.ts';
 import { useStatisticsSettingPageBase } from '@/views/base/statistics/StatisticsSettingPageBase.ts';
 
+import { useAccountsStore } from '@/stores/account.ts';
+import { useTransactionCategoriesStore } from '@/stores/transactionCategory.ts';
+
+import { isObjectEmpty, findDisplayNameByType } from '@/lib/common.ts';
+
 const { tt } = useI18n();
+const { showToast } = useI18nUIComponents();
 const {
+    loadingAccounts,
+    loadingTransactionCategories,
     allChartDataTypes,
     allTimezoneTypesUsedForStatistics,
+    allKeywordMatchModes,
     allSortingTypes,
     allCategoricalChartTypes,
     allCategoricalChartDateRanges,
@@ -219,6 +281,9 @@ const {
     allAssetTrendsChartDateRanges,
     defaultChartDataType,
     defaultTimezoneType,
+    defaultKeywordMatchMode,
+    defaultAccountFilterDisplayContent,
+    defaultTransactionCategoryFilterDisplayContent,
     defaultSortingType,
     defaultCategoricalChartType,
     defaultCategoricalChartDateRange,
@@ -226,13 +291,49 @@ const {
     defaultAssetTrendsChartDateRange
 } = useStatisticsSettingPageBase();
 
-import { findDisplayNameByType } from '@/lib/common.ts';
+const accountsStore = useAccountsStore();
+const transactionCategoriesStore = useTransactionCategoriesStore();
 
 const showDefaultChartDataTypePopup = ref<boolean>(false);
 const showDefaultTimezoneTypePopup = ref<boolean>(false);
+const showDefaultKeywordMatchModePopup = ref<boolean>(false);
 const showDefaultSortingTypePopup = ref<boolean>(false);
 const showDefaultCategoricalChartTypePopup = ref<boolean>(false);
 const showDefaultCategoricalChartDateRangePopup = ref<boolean>(false);
 const showDefaultTrendChartDateRangePopup = ref<boolean>(false);
 const showDefaultAssetTrendsChartDateRangePopup = ref<boolean>(false);
+
+const hasAnyAccount = computed<boolean>(() => accountsStore.allPlainAccounts.length > 0);
+const hasAnyTransactionCategory = computed<boolean>(() => !isObjectEmpty(transactionCategoriesStore.allTransactionCategoriesMap));
+
+function init(): void {
+    loadingAccounts.value = true;
+    loadingTransactionCategories.value = true;
+
+    accountsStore.loadAllAccounts({
+        force: false
+    }).then(() => {
+        loadingAccounts.value = false;
+    }).catch(error => {
+        loadingAccounts.value = false;
+
+        if (!error.processed) {
+            showToast(error.message || error);
+        }
+    });
+
+    transactionCategoriesStore.loadAllCategories({
+        force: false
+    }).then(() => {
+        loadingTransactionCategories.value = false;
+    }).catch(error => {
+        loadingTransactionCategories.value = false;
+
+        if (!error.processed) {
+            showToast(error.message || error);
+        }
+    });
+}
+
+init();
 </script>

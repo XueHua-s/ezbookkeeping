@@ -28,6 +28,8 @@ var (
 	ErrFailureCountLimitReached        = NewNormalError(NormalSubcategoryGlobal, 18, http.StatusBadRequest, "failure count exceeded maximum limit")
 	ErrRepeatedRequest                 = NewNormalError(NormalSubcategoryGlobal, 19, http.StatusBadRequest, "repeated request")
 	ErrIPForbidden                     = NewNormalError(NormalSubcategoryGlobal, 20, http.StatusBadRequest, "ip address is forbidden to access this resource")
+	ErrNumericOverflow                 = NewNormalError(NormalSubcategoryGlobal, 21, http.StatusBadRequest, "numeric overflow")
+	ErrDateRangeInvalid                = NewNormalError(NormalSubcategoryGlobal, 22, http.StatusBadRequest, "date range is invalid")
 )
 
 // GetParameterInvalidMessage returns specific error message for invalid parameter error
@@ -93,6 +95,11 @@ func GetParameterInvalidHexRGBColorMessage(field string) string {
 // GetParameterInvalidAmountFilterMessage returns specific error message for invalid amount filter parameter error
 func GetParameterInvalidAmountFilterMessage(field string) string {
 	return fmt.Sprintf("parameter \"%s\" is invalid amount filter", field)
+}
+
+// GetParameterInvalidTransactionAmountMessage returns specific error message for invalid transaction amount parameter error
+func GetParameterInvalidTransactionAmountMessage(field string) string {
+	return fmt.Sprintf("parameter \"%s\" is invalid transaction amount", field)
 }
 
 // GetParameterInvalidTagFilterMessage returns specific error message for invalid tag filter parameter error

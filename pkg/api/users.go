@@ -256,6 +256,7 @@ func (a *UsersApi) UserUpdateProfileHandler(c *core.WebContext) (any, *errs.Erro
 	userUpdateReq.Nickname = strings.TrimSpace(userUpdateReq.Nickname)
 
 	modifyProfileBasicInfo := false
+	modifyUseLastReconciledTime := false
 	anythingUpdate := false
 	userNew := &models.User{
 		Uid:  user.Uid,
@@ -315,6 +316,16 @@ func (a *UsersApi) UserUpdateProfileHandler(c *core.WebContext) (any, *errs.Erro
 		userNew.DefaultAccountId = userUpdateReq.DefaultAccountId
 		modifyProfileBasicInfo = true
 		anythingUpdate = true
+	}
+
+	if userUpdateReq.UseLastReconciledTime != nil && *userUpdateReq.UseLastReconciledTime != user.UseLastReconciledTime {
+		user.UseLastReconciledTime = *userUpdateReq.UseLastReconciledTime
+		userNew.UseLastReconciledTime = *userUpdateReq.UseLastReconciledTime
+		modifyProfileBasicInfo = true
+		modifyUseLastReconciledTime = true
+		anythingUpdate = true
+	} else {
+		modifyUseLastReconciledTime = false
 	}
 
 	if userUpdateReq.TransactionEditScope != nil && *userUpdateReq.TransactionEditScope != user.TransactionEditScope {
@@ -531,7 +542,7 @@ func (a *UsersApi) UserUpdateProfileHandler(c *core.WebContext) (any, *errs.Erro
 		return nil, errs.ErrNothingWillBeUpdated
 	}
 
-	keyProfileUpdated, emailSetToUnverified, err := a.users.UpdateUser(c, userNew, modifyUserLanguage)
+	keyProfileUpdated, emailSetToUnverified, err := a.users.UpdateUser(c, userNew, modifyUserLanguage, modifyUseLastReconciledTime)
 
 	if err != nil {
 		log.Errorf(c, "[users.UserUpdateProfileHandler] failed to update user \"uid:%d\", because %s", user.Uid, err.Error())

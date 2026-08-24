@@ -187,6 +187,7 @@ func getConfigWithoutSensitiveData(config *settings.Config) *settings.Config {
 	}
 
 	for _, llmConfig := range []*settings.LLMConfig{
+		clonedConfig.TextRecognitionLLMConfig,
 		clonedConfig.ReceiptImageRecognitionLLMConfig,
 		clonedConfig.ReceiptImageRecognitionFallbackLLMConfig,
 		clonedConfig.AIAssistantLLMConfig,

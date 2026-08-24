@@ -39,14 +39,20 @@ import { useI18nUIComponents, closeAllDialog } from '@/lib/ui/mobile.ts';
 
 import { useTransactionsStore } from '@/stores/transaction.ts';
 
+import { ImageUploadQualityType } from '@/core/image.ts';
 import { KnownFileType } from '@/core/file.ts';
 import { SUPPORTED_IMAGE_EXTENSIONS } from '@/consts/file.ts';
 
-import type { RecognizedReceiptImageResponse } from '@/models/large_language_model.ts';
+import type { RecognizedTransactionResponse } from '@/models/large_language_model.ts';
 
 import { generateRandomUUID } from '@/lib/misc.ts';
-import { compressJpgImage } from '@/lib/ui/common.ts';
+import { compressJpgImageByQuality } from '@/lib/ui/common.ts';
 import logger from '@/lib/logger.ts';
+
+export interface AIImageRecognitionResult {
+    response: RecognizedTransactionResponse;
+    imageFile: File;
+}
 
 defineProps<{
     show: boolean;
@@ -54,7 +60,7 @@ defineProps<{
 
 const emit = defineEmits<{
     (e: 'update:show', value: boolean): void;
-    (e: 'recognition:change', value: RecognizedReceiptImageResponse): void;
+    (e: 'recognition:change', value: AIImageRecognitionResult): void;
 }>();
 
 const { tt } = useI18n();
@@ -75,7 +81,7 @@ function loadImage(image: Blob): void {
     imageFile.value = null;
     imageSrc.value = undefined;
 
-    compressJpgImage(image, 1280, 1280, 0.8).then(blob => {
+    compressJpgImageByQuality(image, ImageUploadQualityType.HD720P).then(blob => {
         imageFile.value = KnownFileType.JPG.createFileFromBlob(blob, "image");
         imageSrc.value = URL.createObjectURL(blob);
         loading.value = false;
@@ -119,6 +125,7 @@ function confirm(): void {
         return;
     }
 
+    const currentImageFile = imageFile.value;
     cancelRecognizingUuid.value = generateRandomUUID();
     recognizing.value = true;
     showCancelableLoading('Recognizing', 'AI can make mistakes. Check important info.', 'Cancel Recognition', cancelRecognize);
@@ -131,7 +138,7 @@ function confirm(): void {
         cancelRecognizingUuid.value = undefined;
         closeAllDialog();
         emit('update:show', false);
-        emit('recognition:change', response);
+        emit('recognition:change', { response: response, imageFile: currentImageFile });
     }).catch(error => {
         if (error.canceled) {
             return;

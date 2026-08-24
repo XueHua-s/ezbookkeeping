@@ -1,5 +1,6 @@
 <template>
-    <v-chart autoresize :class="finalClass" :option="chartOptions"
+    <v-chart autoresize :class="finalClass"
+             :option="chartOptions" :update-options="{ notMerge: true }"
              @click="clickItem" @legendselectchanged="onLegendSelectChanged" />
 </template>
 
@@ -11,20 +12,29 @@ import type { CallbackDataParams } from 'echarts/types/dist/shared';
 
 import { useI18n } from '@/locales/helpers.ts';
 
+import { useSettingsStore } from '@/stores/setting.ts';
+
 import { itemAndIndex } from '@/core/base.ts';
 import { TextDirection } from '@/core/text.ts';
-import type { ColorStyleValue } from '@/core/color.ts';
+import type { BigDecimal } from '@/core/numeral.ts';
+import type { ColorValue, ColorStyleValue } from '@/core/color.ts';
 import { ThemeType } from '@/core/theme.ts';
-
-import { DEFAULT_CHART_COLORS } from '@/consts/color.ts';
+import { type AxisChartSourceDataItem, ChartValueType } from '@/core/chart.ts';
+import { DISPLAY_HIDDEN_AMOUNT } from '@/consts/numeral.ts';
 
 import type { SortableTransactionStatisticDataItem } from '@/models/transaction.ts';
 
-import { isArray } from '@/lib/common.ts';
+import { isArray, isNumber } from '@/lib/common.ts';
+import { BIG_DECIMAL_ZERO, BIG_DECIMAL_NEGATIVE_INFINITY, BIG_DECIMAL_POSITIVE_INFINITY, parseBigDecimal } from '@/lib/numeral.ts';
 import { getDisplayColor } from '@/lib/color.ts';
 import { sortStatisticsItems } from '@/lib/statistics.ts';
 
 export type AxisChartDisplayType = 'line' | 'area' | 'column' | 'bubble';
+
+interface AxisChartData {
+    allSeries: AxisChartDataItem[];
+    allOriginalData: BigDecimal[][];
+}
 
 interface AxisChartDataItem {
     id: string;
@@ -38,7 +48,7 @@ interface AxisChartDataItem {
     stack?: string;
     symbolSize?: (data: number) => number;
     animation: boolean;
-    data: number[];
+    data: number[];  // only used for echarts rendering, the actual value is in allOriginalData
 }
 
 interface AxisChartTooltipItem extends SortableTransactionStatisticDataItem {
@@ -46,7 +56,7 @@ interface AxisChartTooltipItem extends SortableTransactionStatisticDataItem {
     readonly name: string;
     readonly color: unknown;
     readonly displayOrders: number[];
-    readonly totalAmount: number;
+    readonly value: BigDecimal;
 }
 
 const props = defineProps<{
@@ -54,6 +64,10 @@ const props = defineProps<{
     skeleton?: boolean;
     type: AxisChartDisplayType;
     stacked?: boolean;
+    hideLegend?: boolean;
+    legendPosition?: 'top' | 'bottom';
+    hideXAxisLabels?: boolean;
+    hideYAxisLabels?: boolean;
     oneHundredPercentStacked?: boolean;
     sortingType: number;
     showValue?: boolean;
@@ -61,25 +75,19 @@ const props = defineProps<{
     totalNameInTooltip?: string;
     categoryTypeName: string;
     allCategoryNames: string[];
-    items: Record<string, unknown>[];
-    idField?: string;
-    nameField: string;
-    valuesField: string;
-    colorField?: string;
-    hiddenField?: string;
-    displayOrdersField?: string;
+    items: AxisChartSourceDataItem[];
+    valueType: ChartValueType;
     translateName?: boolean;
-    amountValue?: boolean;
-    percentValue?: boolean;
     defaultCurrency?: string;
+    useCustomColor?: boolean;
     enableClickItem?: boolean;
     tooltipExtraColumnNames?: string[];
-    tooltipExtraColumnTotalValues?: (categoryIndex: number, totalValue: number, visibleSeriesIds: string[]) => string[];
-    tooltipExtraColumnValues?: (seriesId: string, categoryIndex: number, currentValue: number) => string[];
+    tooltipExtraColumnTotalValues?: (categoryIndex: number, totalValue: BigDecimal, visibleSeriesIds: string[]) => string[];
+    tooltipExtraColumnValues?: (seriesId: string, categoryIndex: number, currentValue: BigDecimal) => string[];
 }>();
 
 const emit = defineEmits<{
-    (e: 'click', itemId: string, categoryIndex: number, item: Record<string, unknown>): void;
+    (e: 'click', itemId: string, categoryIndex: number, item: AxisChartSourceDataItem): void;
 }>();
 
 const theme = useTheme();
@@ -88,16 +96,19 @@ const {
     tt,
     getCurrentLanguageTextDirection,
     formatAmountToWesternArabicNumeralsWithoutDigitGrouping,
+    formatBigDecimalToWesternArabicNumeralsWithoutDigitGrouping,
     formatAmountToLocalizedNumeralsWithCurrency,
-    formatNumberToLocalizedNumerals,
-    formatNumberToWesternArabicNumeralsWithoutDigitGrouping,
-    formatPercentToLocalizedNumerals
+    formatChartValueToLocalizedNumerals
 } = useI18n();
+
+const settingsStore = useSettingsStore();
 
 const selectedLegends = ref<Record<string, boolean>>({});
 
 const textDirection = computed<TextDirection>(() => getCurrentLanguageTextDirection());
 const isDarkMode = computed<boolean>(() => theme.global.name.value === ThemeType.Dark);
+const chartColors = computed<ColorValue[]>(() => settingsStore.chartColorList);
+
 const finalClass = computed<string>(() => {
     let finalClass = '';
 
@@ -114,101 +125,78 @@ const finalClass = computed<string>(() => {
     return finalClass;
 });
 
-const itemsMap = computed<Record<string, Record<string, unknown>>>(() => {
-    const map: Record<string, Record<string, unknown>> = {};
+const allItemsMap = computed<Record<string, AxisChartSourceDataItem>>(() => {
+    const map: Record<string, AxisChartSourceDataItem> = {};
 
     for (const item of props.items) {
-        let id: string = '';
-
-        if (props.idField && item[props.idField]) {
-            id = item[props.idField] as string;
-        } else {
-            id = getItemName(item[props.nameField] as string);
-        }
-
-        const finalItem: Record<string, unknown> = {
-            [props.nameField]: item[props.nameField]
-        };
-
-        if (props.idField) {
-            finalItem[props.idField] = item[props.idField];
-        }
-
-        if (props.hiddenField) {
-            finalItem[props.hiddenField] = item[props.hiddenField];
-        }
-
-        if (props.displayOrdersField) {
-            finalItem[props.displayOrdersField] = item[props.displayOrdersField];
-        }
-
-        map[id] = finalItem;
+        map[item.id ?? getItemName(item.name)] = item;
     }
 
     return map;
 });
 
-const allSeries = computed<AxisChartDataItem[]>(() => {
+const axisChartData = computed<AxisChartData>(() => {
     const allSeries: AxisChartDataItem[] = [];
-    const categoryTotalAmount: Record<number, number> = {};
-    let maxAmountOfAllData: number = 0;
+    const allOriginalData: BigDecimal[][] = [];
+    const categoryTotalAmount: Record<number, BigDecimal> = {};
+    let maxAmountOfAllData: BigDecimal = BIG_DECIMAL_ZERO;
 
     for (const item of props.items) {
-        if (props.hiddenField && item[props.hiddenField]) {
+        if (item.hidden) {
             continue;
         }
 
-        if (!isArray(item[props.valuesField])) {
+        if (!isArray(item.values)) {
             continue;
         }
 
-        const allAmounts: number[] = item[props.valuesField] as number[];
+        const allAmounts: BigDecimal[] = item.values;
 
         for (const [amount, categoryIndex] of itemAndIndex(allAmounts)) {
-            let totalAmount: number = categoryTotalAmount[categoryIndex] ?? 0;
-            totalAmount += amount;
+            let totalAmount: BigDecimal = categoryTotalAmount[categoryIndex] ?? BIG_DECIMAL_ZERO;
+            totalAmount = totalAmount.add(amount);
             categoryTotalAmount[categoryIndex] = totalAmount;
 
-            if (amount > maxAmountOfAllData) {
+            if (amount.greaterThan(maxAmountOfAllData)) {
                 maxAmountOfAllData = amount;
             }
         }
     }
 
     for (const item of props.items) {
-        if (props.hiddenField && item[props.hiddenField]) {
+        if (item.hidden) {
             continue;
         }
 
-        if (!isArray(item[props.valuesField])) {
+        if (!isArray(item.values)) {
             continue;
         }
 
-        const allAmounts: number[] = item[props.valuesField] as number[];
+        const allAmounts: BigDecimal[] = item.values;
 
         if (props.oneHundredPercentStacked) {
             for (const [amount, categoryIndex] of itemAndIndex(allAmounts)) {
-                const totalAmount: number = categoryTotalAmount[categoryIndex] ?? 0;
-                allAmounts[categoryIndex] = totalAmount !== 0 ? amount * 100.0 / totalAmount : 0;
+                const totalAmount: BigDecimal = categoryTotalAmount[categoryIndex] ?? BIG_DECIMAL_ZERO;
+                allAmounts[categoryIndex] = !totalAmount.isZero() ? amount.divide(totalAmount).multiply(100) : BIG_DECIMAL_ZERO;
             }
         }
 
         const finalItem: AxisChartDataItem = {
-            id: (props.idField && item[props.idField]) ? item[props.idField] as string : getItemName(item[props.nameField] as string),
-            name: (props.idField && item[props.idField]) ? item[props.idField] as string : getItemName(item[props.nameField] as string),
+            id: item.id ?? getItemName(item.name),
+            name: item.id ?? getItemName(item.name),
             itemStyle: {
-                color: getDisplayColor(props.colorField && item[props.colorField] ? item[props.colorField] as string : DEFAULT_CHART_COLORS[allSeries.length % DEFAULT_CHART_COLORS.length]),
+                color: getDisplayColor(props.useCustomColor && item.color ? item.color : chartColors.value[allSeries.length % chartColors.value.length]),
             },
             selected: true,
             type: 'line',
             animation: !props.skeleton,
-            data: allAmounts
+            data: allAmounts.map(amount => amount.toDoubleNumber())
         };
 
         if (props.stacked) {
             finalItem.stack = 'a';
-        } else if (props.idField && item[props.idField]) {
-            finalItem.stack = item[props.idField] as string;
+        } else if (item.id) {
+            finalItem.stack = item.id;
         }
 
         if (props.type === 'line') {
@@ -220,32 +208,36 @@ const allSeries = computed<AxisChartDataItem[]>(() => {
         } else if (props.type === 'bubble') {
             finalItem.type = 'scatter';
             finalItem.symbolSize = (data: number): number => {
-                return Math.sqrt(data) / Math.sqrt(maxAmountOfAllData) * 80 + 5;
+                return Math.sqrt(data) / Math.sqrt(maxAmountOfAllData.toDoubleNumber()) * 80 + 5;
             }
         }
 
         allSeries.push(finalItem);
+        allOriginalData.push(allAmounts);
     }
 
-    return allSeries;
+    return {
+        allSeries: allSeries,
+        allOriginalData: allOriginalData
+    };
 });
 
 const yAxisWidth = computed<number>(() => {
-    let maxValue = Number.MIN_SAFE_INTEGER;
-    let minValue = Number.MAX_SAFE_INTEGER;
+    let maxValue: BigDecimal = BIG_DECIMAL_NEGATIVE_INFINITY;
+    let minValue: BigDecimal = BIG_DECIMAL_POSITIVE_INFINITY;
     let width = 90;
 
-    if (!allSeries.value || !allSeries.value.length) {
+    if (!axisChartData.value || !axisChartData.value.allOriginalData || !axisChartData.value.allOriginalData.length) {
         return width;
     }
 
-    for (const series of allSeries.value) {
-        for (const value of series.data) {
-            if (value > maxValue) {
+    for (const seriesData of axisChartData.value.allOriginalData) {
+        for (const value of seriesData) {
+            if (value.greaterThan(maxValue)) {
                 maxValue = value;
             }
 
-            if (value < minValue) {
+            if (value.lessThan(minValue)) {
                 minValue = value;
             }
         }
@@ -292,29 +284,40 @@ const chartOptions = computed<object>(() => {
             },
             formatter: (params: CallbackDataParams[]) => {
                 let tooltip = '';
-                let totalAmount = 0;
+                let totalAmount: BigDecimal = BIG_DECIMAL_ZERO;
                 let actualDisplayItemCount = 0;
                 const displayItems: AxisChartTooltipItem[] = [];
                 const categoryIndex = params.length > 0 && params[0] ? (params[0].dataIndex ?? 0) : 0;
                 const visibleSeriesIds: string[] = [];
 
                 for (const param of params) {
-                    const id = param.seriesId as string;
-                    const name = itemsMap.value[id] && props.nameField && itemsMap.value[id][props.nameField] ? getItemName(itemsMap.value[id][props.nameField] as string) : id;
-                    const color = param.color;
-                    const displayOrders = itemsMap.value[id] && props.displayOrdersField && itemsMap.value[id][props.displayOrdersField] ? itemsMap.value[id][props.displayOrdersField] as number[] : [0];
-                    const amount = param.data as number;
+                    if (!isNumber(param.seriesIndex)) {
+                        continue;
+                    }
+
+                    const seriesIndex = param.seriesIndex;
+                    const seriesData = axisChartData.value.allSeries[seriesIndex];
+
+                    if (!seriesData) {
+                        continue;
+                    }
+
+                    const seriesId = seriesData.id;
+                    const name = allItemsMap.value[seriesId] ? getItemName(allItemsMap.value[seriesId].name) : seriesId;
+                    const color = seriesData.itemStyle.color;
+                    const displayOrders = allItemsMap.value[seriesId]?.displayOrders ?? [0];
+                    const amount: BigDecimal = axisChartData.value.allOriginalData[seriesIndex]?.[categoryIndex] ?? BIG_DECIMAL_ZERO;
 
                     displayItems.push({
-                        id: id,
+                        id: seriesId,
                         name: name,
                         color: color,
                         displayOrders: displayOrders,
-                        totalAmount: amount
+                        value: amount
                     });
 
-                    visibleSeriesIds.push(id);
-                    totalAmount += amount;
+                    visibleSeriesIds.push(seriesId);
+                    totalAmount = totalAmount.add(amount);
                 }
 
                 sortStatisticsItems(displayItems, props.sortingType);
@@ -326,7 +329,7 @@ const chartOptions = computed<object>(() => {
                 if (props.tooltipExtraColumnNames) {
                     if (props.tooltipExtraColumnValues) {
                         for (const [item, index] of itemAndIndex(displayItems)) {
-                            const values = props.tooltipExtraColumnValues(item.id, categoryIndex, item.totalAmount);
+                            const values = props.tooltipExtraColumnValues(item.id, categoryIndex, item.value);
                             extraColumnValuesMap[index] = values;
 
                             for (const [value, columnIndex] of itemAndIndex(values)) {
@@ -350,8 +353,8 @@ const chartOptions = computed<object>(() => {
                 }
 
                 for (const [item, index] of itemAndIndex(displayItems)) {
-                    if (displayItems.length === 1 || item.totalAmount !== 0) {
-                        const value = getDisplayValue(item.totalAmount);
+                    if (displayItems.length === 1 || !item.value.isZero()) {
+                        const value = getDisplayValue(item.value);
                         tooltip += '<tr><td><span class="chart-pointer" style="background-color: ' + item.color + '"></span>';
                         tooltip += `<span>${item.name}</span></td><td><span class="ms-5" style="float: inline-end">${value}</span></td>`;
 
@@ -417,29 +420,32 @@ const chartOptions = computed<object>(() => {
             }
         },
         legend: {
+            show: !props.hideLegend,
             orient: 'horizontal',
             type: 'scroll',
-            top: 0,
-            data: allSeries.value.map(item => item.name),
+            top: (!props.legendPosition || props.legendPosition === 'top') ? 0 : undefined,
+            bottom: props.legendPosition === 'bottom' ? 0 : undefined,
+            data: axisChartData.value.allSeries.map(item => item.name),
             selected: selectedLegends.value,
             textStyle: {
                 color: isDarkMode.value ? '#eee' : '#333'
             },
-            formatter: (id: string) => {
-                return itemsMap.value[id] && props.nameField && itemsMap.value[id][props.nameField] ? getItemName(itemsMap.value[id][props.nameField] as string) : id;
-            }
+            formatter: (id: string) => allItemsMap.value[id] ? getItemName(allItemsMap.value[id].name) : id
         },
         grid: {
-            left: yAxisWidth.value,
+            left: props.hideYAxisLabels ? 20 : yAxisWidth.value,
+            top: !props.hideLegend && (!props.legendPosition || props.legendPosition === 'top') ? 50 : 0,
             right: 20,
-            bottom: 40
+            bottom: (props.hideXAxisLabels ? 10 : 30) + (!props.hideLegend && props.legendPosition === 'bottom' ? 30 : 0),
         },
         xAxis: [
             {
                 type: 'category',
                 data: props.allCategoryNames,
+                boundaryGap: !props.hideYAxisLabels,
                 inverse: textDirection.value === TextDirection.RTL,
                 axisLabel: {
+                    show: !props.hideXAxisLabels,
                     color: isDarkMode.value ? '#888' : '#666'
                 }
             }
@@ -450,15 +456,17 @@ const chartOptions = computed<object>(() => {
                 min: props.oneHundredPercentStacked ? 0 : undefined,
                 max: props.oneHundredPercentStacked ? 100 : undefined,
                 axisLabel: {
+                    show: !props.hideYAxisLabels && (props.showValue !== false || props.valueType !== ChartValueType.Amount),
                     color: isDarkMode.value ? '#888' : '#666',
-                    formatter: (value: string) => {
-                        return getDisplayValue(parseInt(value));
+                    formatter: (value: number) => {
+                        return getDisplayValue(parseBigDecimal(value));
                     }
                 },
                 axisPointer: {
                     label: {
+                        show: props.showValue !== false || props.valueType !== ChartValueType.Amount,
                         formatter: (params: CallbackDataParams) => {
-                            return getDisplayValue(Math.trunc(params.value as number));
+                            return getDisplayValue(parseBigDecimal(params.value as number).truncate());
                         }
                     }
                 },
@@ -469,7 +477,7 @@ const chartOptions = computed<object>(() => {
                 }
             }
         ],
-        series: allSeries.value
+        series: axisChartData.value.allSeries
     };
 });
 
@@ -477,16 +485,16 @@ function getItemName(name: string): string {
     return props.translateName ? tt(name) : name;
 }
 
-function getDisplayValue(value: number): string {
-    if (props.oneHundredPercentStacked || props.percentValue) {
-        return formatPercentToLocalizedNumerals(value, 2, '<0.01');
+function getDisplayValue(value: BigDecimal): string {
+    if (props.showValue === false && props.valueType === ChartValueType.Amount) {
+        return formatAmountToLocalizedNumeralsWithCurrency(DISPLAY_HIDDEN_AMOUNT, props.defaultCurrency);
     }
 
-    if (props.amountValue) {
-        return formatAmountToLocalizedNumeralsWithCurrency(value, props.defaultCurrency);
+    if (props.oneHundredPercentStacked) {
+        return formatChartValueToLocalizedNumerals(value, ChartValueType.Percent, props.defaultCurrency);
+    } else {
+        return formatChartValueToLocalizedNumerals(value, props.valueType, props.defaultCurrency);
     }
-
-    return formatNumberToLocalizedNumerals(value, 2);
 }
 
 function clickItem(e: ECElementEvent): void {
@@ -495,11 +503,11 @@ function clickItem(e: ECElementEvent): void {
     }
 
     const id = e.seriesId as string;
-    const item = itemsMap.value[id] as Record<string, unknown>;
-    const itemId = props.idField ? item[props.idField] as string : '';
+    const item = allItemsMap.value[id] as AxisChartSourceDataItem;
+    const itemId = item?.id ?? '';
     const category = props.allCategoryNames[e.dataIndex];
 
-    if (!category) {
+    if (!item || !category) {
         return;
     }
 
@@ -512,20 +520,22 @@ function exportData(): { headers: string[], data: string[][] } {
 
     headers.push(props.categoryTypeName);
 
-    for (const series of allSeries.value) {
+    for (const series of axisChartData.value.allSeries) {
         const id = series.id;
-        const name = itemsMap.value[id] && props.nameField && itemsMap.value[id][props.nameField] ? getItemName(itemsMap.value[id][props.nameField] as string) : id;
+        const name = allItemsMap.value[id] ? getItemName(allItemsMap.value[id].name) : id;
         headers.push(name);
     }
 
     for (const [categoryName, index] of itemAndIndex(props.allCategoryNames)) {
         const row: string[] = [];
         row.push(categoryName);
-        row.push(...allSeries.value.map(item => {
+        row.push(...axisChartData.value.allOriginalData.map(item => {
             if (props.oneHundredPercentStacked) {
-                return formatNumberToWesternArabicNumeralsWithoutDigitGrouping(item.data[index] ?? 0);
+                return formatBigDecimalToWesternArabicNumeralsWithoutDigitGrouping(item[index] ?? BIG_DECIMAL_ZERO);
+            } else if (props.valueType === ChartValueType.Amount) {
+                return formatAmountToWesternArabicNumeralsWithoutDigitGrouping(item[index] ?? BIG_DECIMAL_ZERO, props.defaultCurrency);
             } else {
-                return formatAmountToWesternArabicNumeralsWithoutDigitGrouping(item.data[index] ?? 0);
+                return formatBigDecimalToWesternArabicNumeralsWithoutDigitGrouping(item[index] ?? BIG_DECIMAL_ZERO);
             }
         }));
         data.push(row);
@@ -555,7 +565,7 @@ defineExpose({
 
 @media (min-width: 600px) {
     .axis-chart-container {
-        height: 630px;
+        height: 650px;
     }
 }
 </style>

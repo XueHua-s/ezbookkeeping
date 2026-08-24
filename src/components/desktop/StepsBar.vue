@@ -1,6 +1,6 @@
 <template>
     <div class="d-flex" :style="`min-width: ${minWidth}px`" v-if="minWidth"></div>
-    <v-slide-group class="slide-group-with-stepper mb-6 hidden-xs" show-arrows>
+    <v-slide-group class="slide-group-with-stepper" :class="{ 'hidden-xs': !alwaysHorizontal }" show-arrows>
         <v-slide-group-item :key="idx" v-for="(step, idx) in steps">
             <div class="mx-1"
                  :class="{ 'slide-group-step-active': isStepActive(step), 'slide-group-step-completed': isStepCompleted(idx), 'cursor-pointer': isClickable }"
@@ -10,18 +10,18 @@
                         <div class="d-flex align-center justify-center" style="block-size: 24px; inline-size: 24px;">
                             <div class="slide-group-stepper-indicator"></div>
                         </div>
-                        <h4 class="text-h4 step-number">{{ getDisplayStep(idx + 1) }}</h4>
+                        <span class="text-headline-medium step-number">{{ getDisplayStep(idx + 1) }}</span>
                     </div>
                     <div style="line-height: 0;">
-                        <h6 class="text-sm font-weight-medium step-title">{{ step.title }}</h6>
-                        <span class="text-xs step-subtitle">{{ step.subTitle }}</span>
+                        <div class="text-body-medium font-weight-medium">{{ step.title }}</div>
+                        <div class="text-body-small text-medium-emphasis">{{ step.subTitle }}</div>
                     </div>
                     <div class="slide-group-stepper-link-line" v-if="idx < steps.length - 1"></div>
                 </div>
             </div>
         </v-slide-group-item>
     </v-slide-group>
-    <v-slide-group class="slide-group-with-stepper mb-3 hidden-sm-and-up" direction="vertical">
+    <v-slide-group class="slide-group-with-stepper hidden-sm-and-up" direction="vertical" v-if="!alwaysHorizontal">
         <v-slide-group-item :key="idx" v-for="(step, idx) in steps">
             <div class="mx-1 mb-3"
                  :class="{ 'slide-group-step-active': isStepActive(step), 'slide-group-step-completed': isStepCompleted(idx), 'cursor-pointer': isClickable }"
@@ -31,11 +31,11 @@
                         <div class="d-flex align-center justify-center" style="block-size: 24px; inline-size: 24px;">
                             <div class="slide-group-stepper-indicator"></div>
                         </div>
-                        <h4 class="text-h4 step-number">{{ getDisplayStep(idx + 1) }}</h4>
+                        <span class="text-headline-medium step-number">{{ getDisplayStep(idx + 1) }}</span>
                     </div>
                     <div style="line-height: 0;">
-                        <h6 class="text-sm font-weight-medium step-title">{{ step.title }}</h6>
-                        <span class="text-xs step-subtitle">{{ step.subTitle }}</span>
+                        <div class="text-body-medium font-weight-medium">{{ step.title }}</div>
+                        <div class="text-body-small text-medium-emphasis">{{ step.subTitle }}</div>
                     </div>
                 </div>
             </div>
@@ -62,6 +62,7 @@ const props = defineProps<{
     currentStep: string;
     clickable?: string | boolean;
     minWidth: string | number;
+    alwaysHorizontal?: boolean;
 }>();
 
 const emit = defineEmits<{

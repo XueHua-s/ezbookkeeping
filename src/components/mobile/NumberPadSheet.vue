@@ -10,63 +10,66 @@
                 <span id="numpad-value" class="numpad-value" :class="currentDisplayNumClass">{{ currentDisplay }}</span>
             </div>
 
-            <f7-popover class="numpad-paste-popover" target-el="#numpad-value"
+            <f7-popover class="paste-context-menu-popover" target-el="#numpad-value"
                         v-model:opened="showPastePopover">
-                <f7-list class="numpad-paste-popover-context-menu-list">
-                    <f7-list-item link="#" no-chevron :title="tt('Paste')" @click="paste"></f7-list-item>
+                <f7-list class="paste-context-menu">
+                    <f7-list-item link="#" no-chevron popover-close
+                                  :title="tt('Paste')" @click="paste"></f7-list-item>
                 </f7-list>
             </f7-popover>
 
             <div class="numpad-buttons">
-                <f7-button class="numpad-button numpad-button-num" @click="inputNum(7)">
+                <f7-button class="numpad-button numpad-button-num" @pointerup="inputNum(7)">
                     <span class="numpad-button-text numpad-button-text-normal">{{ digits[7] }}</span>
                 </f7-button>
-                <f7-button class="numpad-button numpad-button-num" @click="inputNum(8)">
+                <f7-button class="numpad-button numpad-button-num" @pointerup="inputNum(8)">
                     <span class="numpad-button-text numpad-button-text-normal">{{ digits[8] }}</span>
                 </f7-button>
-                <f7-button class="numpad-button numpad-button-num" @click="inputNum(9)">
+                <f7-button class="numpad-button numpad-button-num" @pointerup="inputNum(9)">
                     <span class="numpad-button-text numpad-button-text-normal">{{ digits[9] }}</span>
                 </f7-button>
-                <f7-button class="numpad-button numpad-button-function no-right-border" @click="setSymbol('×')">
+                <f7-button class="numpad-button numpad-button-function no-right-border" @pointerup="setSymbol('×')">
                     <span class="numpad-button-text numpad-button-text-normal">&times;</span>
                 </f7-button>
-                <f7-button class="numpad-button numpad-button-num" @click="inputNum(4)">
+                <f7-button class="numpad-button numpad-button-num" @pointerup="inputNum(4)">
                     <span class="numpad-button-text numpad-button-text-normal">{{ digits[4] }}</span>
                 </f7-button>
-                <f7-button class="numpad-button numpad-button-num" @click="inputNum(5)">
+                <f7-button class="numpad-button numpad-button-num" @pointerup="inputNum(5)">
                     <span class="numpad-button-text numpad-button-text-normal">{{ digits[5] }}</span>
                 </f7-button>
-                <f7-button class="numpad-button numpad-button-num" @click="inputNum(6)">
+                <f7-button class="numpad-button numpad-button-num" @pointerup="inputNum(6)">
                     <span class="numpad-button-text numpad-button-text-normal">{{ digits[6] }}</span>
                 </f7-button>
-                <f7-button class="numpad-button numpad-button-function no-right-border" @click="setSymbol('−')">
+                <f7-button class="numpad-button numpad-button-function no-right-border" @pointerup="setSymbol('−')">
                     <span class="numpad-button-text numpad-button-text-normal">&minus;</span>
                 </f7-button>
-                <f7-button class="numpad-button numpad-button-num" @click="inputNum(1)">
+                <f7-button class="numpad-button numpad-button-num" @pointerup="inputNum(1)">
                     <span class="numpad-button-text numpad-button-text-normal">{{ digits[1] }}</span>
                 </f7-button>
-                <f7-button class="numpad-button numpad-button-num" @click="inputNum(2)">
+                <f7-button class="numpad-button numpad-button-num" @pointerup="inputNum(2)">
                     <span class="numpad-button-text numpad-button-text-normal">{{ digits[2] }}</span>
                 </f7-button>
-                <f7-button class="numpad-button numpad-button-num" @click="inputNum(3)">
+                <f7-button class="numpad-button numpad-button-num" @pointerup="inputNum(3)">
                     <span class="numpad-button-text numpad-button-text-normal">{{ digits[3] }}</span>
                 </f7-button>
-                <f7-button class="numpad-button numpad-button-function no-right-border" @click="setSymbol('+')">
+                <f7-button class="numpad-button numpad-button-function no-right-border" @pointerup="setSymbol('+')">
                     <span class="numpad-button-text numpad-button-text-normal">&plus;</span>
                 </f7-button>
-                <f7-button class="numpad-button numpad-button-num" v-if="supportDecimalSeparator" @click="inputDecimalSeparator()">
+                <f7-button class="numpad-button numpad-button-num" @pointerup="inputDecimalSeparator()"
+                        v-if="supportDecimalSeparator">
                     <span class="numpad-button-text numpad-button-text-normal">{{ decimalSeparator }}</span>
                 </f7-button>
-                <f7-button class="numpad-button numpad-button-num" v-if="!supportDecimalSeparator" @click="inputDoubleNum(0)">
+                <f7-button class="numpad-button numpad-button-num" @pointerup="inputDoubleNum(0)"
+                        v-if="!supportDecimalSeparator">
                     <span class="numpad-button-text numpad-button-text-normal">{{ `${digits[0]}${digits[0]}` }}</span>
                 </f7-button>
-                <f7-button class="numpad-button numpad-button-num" @click="inputNum(0)">
+                <f7-button class="numpad-button numpad-button-num" @pointerup="inputNum(0)">
                     <span class="numpad-button-text numpad-button-text-normal">{{ digits[0] }}</span>
                 </f7-button>
-                <f7-button class="numpad-button numpad-button-num" @click="backspace" @taphold="clear()">
-                <span class="numpad-button-text numpad-button-text-normal">
-                    <f7-icon class="icon-with-direction" f7="delete_left"></f7-icon>
-                </span>
+                <f7-button class="numpad-button numpad-button-num" @pointerup="backspace" @taphold="clear()">
+                    <span class="numpad-button-text numpad-button-text-normal">
+                        <f7-icon class="icon-with-direction" f7="delete_left"></f7-icon>
+                    </span>
                 </f7-button>
                 <f7-button class="numpad-button numpad-button-confirm no-right-border no-bottom-border" fill @click="confirm()">
                     <span :class="{ 'numpad-button-text': true, 'numpad-button-text-confirm': !currentSymbol }">{{ confirmText }}</span>
@@ -82,10 +85,11 @@ import { ref, computed, watch } from 'vue';
 import { useI18n } from '@/locales/helpers.ts';
 import { useI18nUIComponents, isiOS } from '@/lib/ui/mobile.ts';
 
-import { NumeralSystem } from '@/core/numeral.ts';
+import { type BigDecimal, NumeralSystem } from '@/core/numeral.ts';
 import { AMOUNT_FACTOR } from '@/consts/numeral.ts';
 import { ALL_CURRENCIES } from '@/consts/currency.ts';
 import { isNumber } from '@/lib/common.ts';
+import { BIG_DECIMAL_ZERO, parseBigDecimal, isBigDecimal } from '@/lib/numeral.ts';
 import logger from '@/lib/logger.ts';
 
 const props = defineProps<{
@@ -160,7 +164,9 @@ const currentDisplay = computed<string>(() => {
 });
 
 const currentDisplayNumClass = computed<string>(() => {
-    if (currentDisplay.value && currentDisplay.value.length >= 24) {
+    if (currentDisplay.value && currentDisplay.value.length >= 28) {
+        return 'numpad-value-extra-small';
+    } else if (currentDisplay.value && currentDisplay.value.length >= 22) {
         return 'numpad-value-small';
     } else if (currentDisplay.value && currentDisplay.value.length >= 16) {
         return 'numpad-value-normal';
@@ -182,11 +188,11 @@ function getInitedStringValue(value: number, flipNegative?: boolean): string {
         value = -value;
     }
 
-    return getStringValue(value, true);
+    return getStringValue(parseBigDecimal(value), true);
 }
 
-function getStringValue(value: number, hideZero: boolean): string {
-    if (!isNumber(value)) {
+function getStringValue(value: BigDecimal, hideZero: boolean): string {
+    if (!isBigDecimal(value)) {
         return '';
     }
 
@@ -327,8 +333,6 @@ function clear(): void {
 }
 
 function paste(): void {
-    showPastePopover.value = false;
-
     if (pastingAmount.value) {
         pastingAmount.value = false;
         return;
@@ -364,7 +368,7 @@ function paste(): void {
             }
         }
 
-        currentValue.value = getStringValue(parsedAmount, false);
+        currentValue.value = getStringValue(parseBigDecimal(parsedAmount), false);
     }).catch(error => {
         // Do not set pastingAmount to false here
         // In iOS, system will show the paste context menu, if user click outside, the paste action should not be triggered again
@@ -374,33 +378,33 @@ function paste(): void {
 
 function confirm(): boolean {
     if (currentSymbol.value && currentValue.value.length >= 1) {
-        const previous = parseAmountFromWesternArabicNumerals(previousValue.value);
-        const current = parseAmountFromWesternArabicNumerals(currentValue.value);
-        let finalValue = 0;
+        const previous: BigDecimal = parseBigDecimal(parseAmountFromWesternArabicNumerals(previousValue.value));
+        const current: BigDecimal = parseBigDecimal(parseAmountFromWesternArabicNumerals(currentValue.value));
+        let finalValue: BigDecimal = BIG_DECIMAL_ZERO;
 
         switch (currentSymbol.value) {
             case '+':
-                finalValue = previous + current;
+                finalValue = previous.add(current);
                 break;
             case '−':
-                finalValue = previous - current;
+                finalValue = previous.subtract(current);
                 break;
             case '×':
-                finalValue = Math.trunc(previous * current / AMOUNT_FACTOR);
+                finalValue = previous.multiply(current).divide(AMOUNT_FACTOR).truncate();
                 break;
             default:
                 finalValue = previous;
         }
 
         if (isNumber(props.minValue)) {
-            if (finalValue < (props.minValue)) {
+            if (finalValue.lessThan(props.minValue)) {
                 showToast('Numeric Overflow');
                 return false;
             }
         }
 
         if (isNumber(props.maxValue)) {
-            if (finalValue > (props.maxValue)) {
+            if (finalValue.greaterThan(props.maxValue)) {
                 showToast('Numeric Overflow');
                 return false;
             }
@@ -482,6 +486,10 @@ watch(() => props.flipNegative, (newValue) => {
     user-select: none;
 }
 
+.numpad-value-extra-small {
+    font-size: var(--ebk-numpad-value-extra-small-font-size);
+}
+
 .numpad-value-small {
     font-size: var(--ebk-numpad-value-small-font-size);
 }
@@ -512,11 +520,17 @@ watch(() => props.flipNegative, (newValue) => {
     align-items: center;
     box-sizing: border-box;
     user-select: none;
-    touch-action: none;
+    touch-action: manipulation;
+    transition: transform 0.01s ease;
 }
 
 .numpad-button-num {
     width: calc(80% / 3);
+}
+
+.numpad-button-num:active,
+.numpad-button-function:active {
+    background-color: var(--f7-button-pressed-bg-color, rgba(var(--f7-theme-color-rgb), 0.15));
 }
 
 .numpad-button-function, .numpad-button-confirm {
@@ -544,33 +558,5 @@ watch(() => props.flipNegative, (newValue) => {
 
 .numpad-button-text-confirm {
     font-size: var(--ebk-numpad-confirm-button-font-size);
-}
-
-.numpad-paste-popover.popover {
-    width: auto;
-
-    .numpad-paste-popover-context-menu-list.list {
-        :first-child li:first-child a {
-            &.active-state {
-                border-radius: unset;
-            }
-
-            > .item-content {
-                min-height: var(--ebk-popover-context-menu-min-height);
-
-                > .item-inner {
-                    min-height: var(--ebk-popover-context-menu-min-height);
-                    padding-top: var(--ebk-popover-context-menu-vertical-padding);
-                    padding-bottom: var(--ebk-popover-context-menu-vertical-padding);
-                    padding-left: var(--ebk-popover-context-menu-left-padding);
-                    padding-right: var(--ebk-popover-context-menu-right-padding);
-
-                    > .item-title {
-                        font-size: var(--ebk-popover-context-menu-button-font-size);
-                    }
-                }
-            }
-        }
-    }
 }
 </style>

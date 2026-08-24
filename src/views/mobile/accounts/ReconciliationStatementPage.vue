@@ -1,18 +1,18 @@
 <template>
     <f7-page @page:afterin="onPageAfterIn">
         <f7-navbar>
-            <f7-nav-left :class="{ 'disabled': loading }"  :back-link="tt('Back')"></f7-nav-left>
+            <f7-nav-left :class="{ 'disabled': loading || updatingLastReconciledTime }"  :back-link="tt('Back')"></f7-nav-left>
             <f7-nav-title>
                 <span style="color: var(--f7-text-color)" v-if="!finishQuery">{{ tt('Reconciliation Statement') }}</span>
-                <f7-link popover-open=".display-mode-popover-menu" :class="{ 'disabled': loading }" v-if="finishQuery">
+                <f7-link popover-open=".display-mode-popover-menu" :class="{ 'disabled': loading || updatingLastReconciledTime }" v-if="finishQuery">
                     <span style="color: var(--f7-text-color)">{{ tt('Reconciliation Statement') }}</span>
                     <f7-icon class="page-title-bar-icon" style="opacity: 0.5"
                              color="gray" f7="chevron_down_circle_fill"></f7-icon>
                 </f7-link>
             </f7-nav-title>
-            <f7-nav-right :class="{ 'navbar-compact-icons': true, 'disabled': loading }">
+            <f7-nav-right :class="{ 'navbar-compact-icons': true, 'disabled': loading || updatingLastReconciledTime }">
                 <f7-link icon-f7="checkmark_alt" :class="{ 'disabled': !validQuery }" @click="reload(false)" v-if="!finishQuery"></f7-link>
-                <f7-link icon-f7="ellipsis" :class="{ 'disabled': loading }" v-if="finishQuery" @click="showMoreActionSheet = true"></f7-link>
+                <f7-link icon-f7="ellipsis" :class="{ 'disabled': loading || updatingLastReconciledTime }" v-if="finishQuery" @click="showMoreActionSheet = true"></f7-link>
             </f7-nav-right>
         </f7-navbar>
 
@@ -28,7 +28,7 @@
                 </f7-list-item>
                 <f7-list-item link="#" no-chevron popover-close
                               :title="tt('Account Balance Trends')"
-                              :class="{ 'list-item-selected': showAccountBalanceTrendsCharts }"
+                              :class="{ 'list-item-selected': showAccountBalanceTrendsCharts, 'disabled': !reconciliationStatements?.transactions?.length }"
                               @click="showAccountBalanceTrendsCharts = true">
                     <template #after>
                         <f7-icon class="list-item-checked-icon" f7="checkmark_alt" v-if="showAccountBalanceTrendsCharts"></f7-icon>
@@ -37,7 +37,7 @@
             </f7-list>
         </f7-popover>
 
-        <f7-list form strong inset dividers class="margin-vertical" v-if="!finishQuery">
+        <f7-list form strong inset dividers class="margin-vertical-half" v-if="!finishQuery">
             <f7-list-item group-title>
                 <small>{{ tt('Date Range') }}</small>
             </f7-list-item>
@@ -60,11 +60,11 @@
             </f7-list-item>
         </f7-list>
 
-        <f7-list strong inset dividers class="margin-vertical" v-if="finishQuery && !startTime && !endTime">
+        <f7-list strong inset dividers class="margin-vertical-half" v-if="finishQuery && !startTime && !endTime">
             <f7-list-item :title="tt('Date Range')" :after="tt('All')"></f7-list-item>
         </f7-list>
 
-        <f7-list strong inset dividers class="margin-vertical" v-if="finishQuery && (startTime || endTime)">
+        <f7-list strong inset dividers class="margin-vertical-half" v-if="finishQuery && (startTime || endTime)">
             <f7-list-item :title="tt('Start Time')" :after="displayStartDateTime"></f7-list-item>
             <f7-list-item :title="tt('End Time')" :after="displayEndDateTime"></f7-list-item>
         </f7-list>
@@ -189,7 +189,7 @@
                         <div class="display-flex no-padding-horizontal" v-if="item.type == 'transaction' && item.transaction">
                             <div class="item-media">
                                 <div class="transaction-icon display-flex align-items-center">
-                                    <ItemIcon icon-type="category"
+                                    <ItemIcon :icon-type="getCategoryIconType(item.transaction.category?.iconType)"
                                               :icon-id="item.transaction.category?.icon"
                                               :color="item.transaction.category?.color"
                                               v-if="item.transaction.category && item.transaction.category?.color"></ItemIcon>
@@ -261,11 +261,11 @@
 
         <f7-card v-if="finishQuery && showAccountBalanceTrendsCharts">
             <f7-card-header class="no-border display-block">
-                <div class="statistics-chart-header display-flex full-line justify-content-space-between">
+                <div class="statistics-chart-header display-flex width-100 justify-content-space-between">
                     <div></div>
                     <div class="align-self-flex-end">
                         <span style="margin-inline-end: 4px;">{{ tt('Time Granularity') }}</span>
-                        <f7-link :class="{ 'disabled': loading }" href="#" popover-open=".chart-data-date-aggregation-type-popover-menu">{{ chartDataDateAggregationTypeDisplayName }}</f7-link>
+                        <f7-link :class="{ 'disabled': loading || updatingLastReconciledTime }" href="#" popover-open=".chart-data-date-aggregation-type-popover-menu">{{ chartDataDateAggregationTypeDisplayName }}</f7-link>
                     </div>
                 </div>
             </f7-card-header>
@@ -332,11 +332,12 @@
 
         <f7-actions close-by-outside-click close-on-escape :opened="showMoreActionSheet" @actions:closed="showMoreActionSheet = false">
             <f7-actions-group>
-                <f7-actions-button :class="{ 'disabled': loading }" @click="addTransaction()">{{ tt('Add Transaction') }}</f7-actions-button>
-                <f7-actions-button :class="{ 'disabled': loading }" @click="updateClosingBalance(undefined)">{{ tt('Update Closing Balance') }}</f7-actions-button>
+                <f7-actions-button :class="{ 'disabled': loading || updatingLastReconciledTime }" @click="addTransaction()">{{ tt('Add Transaction') }}</f7-actions-button>
+                <f7-actions-button :class="{ 'disabled': loading || updatingLastReconciledTime }" @click="updateClosingBalance(undefined)" v-if="canUpdateAccountCloseBalance">{{ tt('Update Closing Balance') }}</f7-actions-button>
+                <f7-actions-button :class="{ 'disabled': loading || updatingLastReconciledTime }" @click="updateLastReconciledTime()" v-if="newLastReconciledTime">{{ tt('Mark as Reconciled') }}</f7-actions-button>
             </f7-actions-group>
             <f7-actions-group>
-                <f7-actions-button :class="{ 'disabled': loading }" @click="reload(true)">{{ tt('Refresh') }}</f7-actions-button>
+                <f7-actions-button :class="{ 'disabled': loading || updatingLastReconciledTime }" @click="reload(true)">{{ tt('Refresh') }}</f7-actions-button>
             </f7-actions-group>
             <f7-actions-group>
                 <f7-actions-button bold close>{{ tt('Cancel') }}</f7-actions-button>
@@ -356,32 +357,39 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, nextTick } from 'vue';
 import type { Router } from 'framework7/types';
 
 import { useI18n } from '@/locales/helpers.ts';
 import { useI18nUIComponents, showLoading, hideLoading, onSwipeoutDeleted } from '@/lib/ui/mobile.ts';
 import { useReconciliationStatementPageBase } from '@/views/base/accounts/ReconciliationStatementPageBase.ts';
 
+import { useSettingsStore } from '@/stores/setting.ts';
+import { useUserStore } from '@/stores/user.ts';
 import { useAccountsStore } from '@/stores/account.ts';
 import { useTransactionCategoriesStore } from '@/stores/transactionCategory.ts';
 import { useTransactionsStore } from '@/stores/transaction.ts';
 
 import { TextDirection } from '@/core/text.ts';
+import type { BigDecimal } from '@/core/numeral.ts';
 import { type TimeRangeAndDateType, DateRange, DateRangeScene } from '@/core/datetime.ts';
 import { AccountType } from '@/core/account.ts';
 import { TransactionType } from '@/core/transaction.ts';
+import { DEFAULT_RECONCILIATION_STATEMENT_DATE_RANGE_IN_MOBILE } from '@/core/statistics.ts';
 import { TRANSACTION_MIN_AMOUNT, TRANSACTION_MAX_AMOUNT } from '@/consts/transaction.ts';
 import { type TransactionReconciliationStatementResponseItemWithInfo } from '@/models/transaction.ts';
 
-import { isDefined, isEquals, findDisplayNameByType } from '@/lib/common.ts';
+import { isDefined, findDisplayNameByType } from '@/lib/common.ts';
+import { BIG_DECIMAL_ZERO, parseBigDecimal } from '@/lib/numeral.ts';
 import {
     getCurrentUnixTime,
     getDateTypeByDateRange,
     getDateTypeByBillingCycleDateRange,
     getDateRangeByDateType,
-    getDateRangeByBillingCycleDateType
+    getDateRangeByBillingCycleDateType,
+    getDateRangeByLastReconciledTimeRangeDateType
 } from '@/lib/datetime.ts';
+import { getCategoryIconType } from '@/lib/icon.ts';
 
 interface ReconciliationStatementVirtualListData {
     items: ReconciliationStatementVirtualListItem[],
@@ -423,9 +431,12 @@ const {
     allDateAggregationTypes,
     allTimezoneTypesUsedForDateRange,
     isCurrentLiabilityAccount,
+    canUpdateAccountCloseBalance,
+    newLastReconciledTime,
     currentAccount,
     currentAccountCurrency,
     currentAccountStatementDate,
+    currentAccountLastReconciledTime,
     displayStartDateTime,
     displayEndDateTime,
     displayTotalInflows,
@@ -433,6 +444,8 @@ const {
     displayTotalBalance,
     displayOpeningBalance,
     displayClosingBalance,
+    updatePageOpenTime,
+    isReconciliationStatementsResponseEquals,
     setReconciliationStatements,
     getDisplayDate,
     getDisplayTime,
@@ -443,6 +456,8 @@ const {
     getDisplayAccountBalance
 } = useReconciliationStatementPageBase();
 
+const settingsStore = useSettingsStore();
+const userStore = useUserStore();
 const accountsStore = useAccountsStore();
 const transactionCategoriesStore = useTransactionCategoriesStore();
 const transactionsStore = useTransactionsStore();
@@ -450,8 +465,9 @@ const transactionsStore = useTransactionsStore();
 const finishQuery = ref<boolean>(false);
 const loading = ref<boolean>(false);
 const loadingError = ref<unknown | null>(null);
-const queryDateRangeType = ref<number>(DateRange.ThisMonth.type);
+const queryDateRangeType = ref<number>(DEFAULT_RECONCILIATION_STATEMENT_DATE_RANGE_IN_MOBILE.type);
 const showAccountBalanceTrendsCharts = ref<boolean>(false);
+const updatingLastReconciledTime = ref<boolean>(false);
 const transactionToDelete = ref<TransactionReconciliationStatementResponseItemWithInfo | null>(null);
 const newClosingBalance = ref<number>(0);
 const showCustomDateRangeSheet = ref<boolean>(false);
@@ -465,7 +481,11 @@ const virtualDataItems = ref<ReconciliationStatementVirtualListData>({
 
 const textDirection = computed<TextDirection>(() => getCurrentLanguageTextDirection());
 const validQuery = computed(() => currentAccount.value && currentAccount.value.type === AccountType.SingleAccount.type);
-const allAvailableDateRanges = computed(() => getAllDateRanges(DateRangeScene.Normal, true, !!accountsStore.getAccountStatementDate(accountId.value)));
+const allAvailableDateRanges = computed(() => getAllDateRanges(DateRangeScene.Normal, {
+    includeCustom: true,
+    includeBillingCycle: !!accountsStore.getAccountStatementDate(accountId.value),
+    includeLastReconciledTimeRange: userStore.currentUserUseLastReconciledTime && !!currentAccountLastReconciledTime.value
+}));
 
 const allReconciliationStatementVirtualListItems = computed<ReconciliationStatementVirtualListItem[]>(() => {
     const ret: ReconciliationStatementVirtualListItem[] = [];
@@ -511,6 +531,7 @@ function init(): void {
     const query = props.f7route.query;
     const defaultDateRange = getDateRangeByDateType(queryDateRangeType.value, firstDayOfWeek.value, fiscalYearStart.value);
 
+    updatePageOpenTime();
     finishQuery.value = false;
     loading.value = false;
     accountId.value = query['accountId'] || '';
@@ -518,12 +539,33 @@ function init(): void {
     endTime.value = defaultDateRange?.maxTime || 0;
     reconciliationStatements.value = undefined;
 
+    initDateFilter();
+
     Promise.all([
         accountsStore.loadAllAccounts({ force: false }),
         transactionCategoriesStore.loadAllCategories({ force: false })
     ]).catch(error => {
         loadingError.value = error;
         showToast(error.message || error);
+    });
+}
+
+function initDateFilter(): void {
+    let defaultDateRangeType = settingsStore.appSettings.reconciliationStatementPageDefaultDateRangeTypeInMobile;
+    const defualtDateRange = DateRange.valueOf(defaultDateRangeType);
+
+    if (!defualtDateRange) {
+        defaultDateRangeType = DEFAULT_RECONCILIATION_STATEMENT_DATE_RANGE_IN_MOBILE.type;
+    } else if (defualtDateRange.isBillingCycle && !accountsStore.getAccountStatementDate(accountId.value)) {
+        defaultDateRangeType = DEFAULT_RECONCILIATION_STATEMENT_DATE_RANGE_IN_MOBILE.type;
+    } else if (defualtDateRange.isLastReconciledTimeRange && (!userStore.currentUserUseLastReconciledTime || !currentAccount.value || !currentAccount.value.lastReconciledTime)) {
+        defaultDateRangeType = DEFAULT_RECONCILIATION_STATEMENT_DATE_RANGE_IN_MOBILE.type;
+    } else {
+        defaultDateRangeType = defualtDateRange.type;
+    }
+
+    nextTick(() => {
+        changeDateFilter(defaultDateRangeType);
     });
 }
 
@@ -537,6 +579,8 @@ function changeDateFilter(dateRangeType: number): void {
 
     if (DateRange.isBillingCycle(dateRangeType)) {
         dateRange = getDateRangeByBillingCycleDateType(dateRangeType, firstDayOfWeek.value, fiscalYearStart.value, accountsStore.getAccountStatementDate(accountId.value));
+    } else if (DateRange.isLastReconciledTimeRange(dateRangeType)) {
+        dateRange = getDateRangeByLastReconciledTimeRangeDateType(dateRangeType, currentAccountLastReconciledTime.value);
     } else {
         dateRange = getDateRangeByDateType(dateRangeType, firstDayOfWeek.value, fiscalYearStart.value);
     }
@@ -577,7 +621,7 @@ function reload(force: boolean): void {
         endTime: endTime.value
     }).then(result => {
         if (force) {
-            if (isEquals(reconciliationStatements.value, result)) {
+            if (isReconciliationStatementsResponseEquals(result)) {
                 showToast('Data is up to date');
             } else {
                 showToast('Data has been updated');
@@ -608,14 +652,19 @@ function editTransaction(transaction: TransactionReconciliationStatementResponse
 }
 
 function updateClosingBalance(balance?: number): void {
-    let currentClosingBalance = reconciliationStatements.value?.closingBalance ?? 0;
+    let currentClosingBalance: BigDecimal = reconciliationStatements.value?.closingBalance ?? BIG_DECIMAL_ZERO;
 
     if (isCurrentLiabilityAccount.value) {
-        currentClosingBalance = -currentClosingBalance;
+        currentClosingBalance = currentClosingBalance.negate();
     }
 
     if (!isDefined(balance)) {
-        newClosingBalance.value = currentClosingBalance;
+        if (!currentClosingBalance.between(TRANSACTION_MIN_AMOUNT, TRANSACTION_MAX_AMOUNT)) {
+            showToast('Numeric Overflow');
+            return;
+        }
+
+        newClosingBalance.value = currentClosingBalance.toSafeIntegerNumber();
         showNewClosingBalanceSheet.value = true;
         return;
     }
@@ -633,11 +682,16 @@ function updateClosingBalance(balance?: number): void {
     }
 
     let newTransactionType: TransactionType = isCurrentLiabilityAccount.value ? TransactionType.Expense : TransactionType.Income;
-    let newTransactionAmount: number = balance - currentClosingBalance;
+    let newTransactionAmount: BigDecimal = parseBigDecimal(balance).subtract(currentClosingBalance);
 
-    if (newTransactionAmount < 0) {
+    if (newTransactionAmount.isNegative()) {
         newTransactionType = isCurrentLiabilityAccount.value ? TransactionType.Income : TransactionType.Expense;
-        newTransactionAmount = -newTransactionAmount;
+        newTransactionAmount = newTransactionAmount.negate();
+    }
+
+    if (!newTransactionAmount.between(TRANSACTION_MIN_AMOUNT, TRANSACTION_MAX_AMOUNT)) {
+        showToast('Numeric Overflow');
+        return;
     }
 
     const params: string[] = [];
@@ -647,11 +701,33 @@ function updateClosingBalance(balance?: number): void {
     }
 
     params.push(`type=${newTransactionType}`);
-    params.push(`amount=${newTransactionAmount}`);
+    params.push(`amount=${newTransactionAmount.toSafeIntegerNumber()}`);
     params.push(`accountId=${accountId.value}`);
     params.push(`noTransactionDraft=true`);
 
     props.f7router.navigate(`/transaction/add?${params.join('&')}`);
+}
+
+function updateLastReconciledTime(): void {
+    if (!newLastReconciledTime.value) {
+        return;
+    }
+
+    updatingLastReconciledTime.value = true;
+    showLoading(() => updatingLastReconciledTime.value);
+
+    accountsStore.updateAccountLastReconciledTime(accountId.value, newLastReconciledTime.value).then(() => {
+        updatingLastReconciledTime.value = false;
+        hideLoading();
+        showToast('Last reconciled time have been updated');
+    }).catch(error => {
+        updatingLastReconciledTime.value = false;
+        hideLoading();
+
+        if (!error.processed) {
+            showToast(error.message || error);
+        }
+    });
 }
 
 function removeTransaction(transaction: TransactionReconciliationStatementResponseItemWithInfo | null, confirm: boolean): void {

@@ -21,11 +21,12 @@ type TransactionScheduleFrequencyType byte
 
 // Transaction template schedule frequency types
 const (
-	TRANSACTION_SCHEDULE_FREQUENCY_TYPE_DISABLED TransactionScheduleFrequencyType = 0
-	TRANSACTION_SCHEDULE_FREQUENCY_TYPE_WEEKLY   TransactionScheduleFrequencyType = 1
-	TRANSACTION_SCHEDULE_FREQUENCY_TYPE_MONTHLY  TransactionScheduleFrequencyType = 2
-	TRANSACTION_SCHEDULE_FREQUENCY_TYPE_DAILY    TransactionScheduleFrequencyType = 3
-	TRANSACTION_SCHEDULE_FREQUENCY_TYPE_YEARLY   TransactionScheduleFrequencyType = 4
+	TRANSACTION_SCHEDULE_FREQUENCY_TYPE_DISABLED     TransactionScheduleFrequencyType = 0
+	TRANSACTION_SCHEDULE_FREQUENCY_TYPE_WEEKLY       TransactionScheduleFrequencyType = 1
+	TRANSACTION_SCHEDULE_FREQUENCY_TYPE_MONTHLY      TransactionScheduleFrequencyType = 2
+	TRANSACTION_SCHEDULE_FREQUENCY_TYPE_DAILY        TransactionScheduleFrequencyType = 3
+	TRANSACTION_SCHEDULE_FREQUENCY_TYPE_YEARLY       TransactionScheduleFrequencyType = 4
+	TRANSACTION_SCHEDULE_FREQUENCY_TYPE_EVERY_N_DAYS TransactionScheduleFrequencyType = 5
 )
 
 // TransactionTemplate represents transaction template stored in database
@@ -75,8 +76,8 @@ type TransactionTemplateCreateRequest struct {
 	CategoryId                 int64                             `json:"categoryId,string" binding:"required,min=1"`
 	SourceAccountId            int64                             `json:"sourceAccountId,string" binding:"required,min=1"`
 	DestinationAccountId       int64                             `json:"destinationAccountId,string" binding:"min=0"`
-	SourceAmount               int64                             `json:"sourceAmount" binding:"min=-99999999999,max=99999999999"`
-	DestinationAmount          int64                             `json:"destinationAmount" binding:"min=-99999999999,max=99999999999"`
+	SourceAmount               int64                             `json:"sourceAmount" binding:"validTransactionAmount"`
+	DestinationAmount          int64                             `json:"destinationAmount" binding:"validTransactionAmount"`
 	HideAmount                 bool                              `json:"hideAmount"`
 	TagIds                     []string                          `json:"tagIds"`
 	Comment                    string                            `json:"comment" binding:"max=255"`
@@ -102,8 +103,8 @@ type TransactionTemplateModifyRequest struct {
 	CategoryId                 int64                             `json:"categoryId,string" binding:"required,min=1"`
 	SourceAccountId            int64                             `json:"sourceAccountId,string" binding:"required,min=1"`
 	DestinationAccountId       int64                             `json:"destinationAccountId,string" binding:"min=0"`
-	SourceAmount               int64                             `json:"sourceAmount" binding:"min=-99999999999,max=99999999999"`
-	DestinationAmount          int64                             `json:"destinationAmount" binding:"min=-99999999999,max=99999999999"`
+	SourceAmount               int64                             `json:"sourceAmount" binding:"validTransactionAmount"`
+	DestinationAmount          int64                             `json:"destinationAmount" binding:"validTransactionAmount"`
 	HideAmount                 bool                              `json:"hideAmount"`
 	TagIds                     []string                          `json:"tagIds"`
 	Comment                    string                            `json:"comment" binding:"max=255"`
@@ -206,6 +207,12 @@ func (t *TransactionTemplate) toTransactionInfoResponse(utcOffset int16) *Transa
 		tagIds = strings.Split(t.TagIds, ",")
 	}
 
+	var destinationAmount *int64
+
+	if t.Type == TRANSACTION_TYPE_TRANSFER {
+		destinationAmount = &t.RelatedAccountAmount
+	}
+
 	return &TransactionInfoResponse{
 		Id:                   t.TemplateId,
 		TimeSequenceId:       utils.GetMinTransactionTimeFromUnixTime(t.CreatedUnixTime),
@@ -216,7 +223,7 @@ func (t *TransactionTemplate) toTransactionInfoResponse(utcOffset int16) *Transa
 		SourceAccountId:      t.AccountId,
 		DestinationAccountId: t.RelatedAccountId,
 		SourceAmount:         t.Amount,
-		DestinationAmount:    t.RelatedAccountAmount,
+		DestinationAmount:    destinationAmount,
 		HideAmount:           t.HideAmount,
 		TagIds:               tagIds,
 		Comment:              t.Comment,

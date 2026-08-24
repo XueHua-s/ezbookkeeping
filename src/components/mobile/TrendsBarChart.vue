@@ -69,18 +69,18 @@
                 <div class="statistics-list-item-text">
                     <span>{{ item.displayDateRange }}</span>
                 </div>
-                <div class="full-line statistics-percent-line statistics-multi-percent-line display-flex flex-direction-column" v-if="!stacked && item.items.length > 1">
+                <div class="width-100 statistics-percent-line statistics-multi-percent-line display-flex flex-direction-column" v-if="!stacked && item.items.length > 1">
                     <div class="display-flex flex-direction-column"
                          style="margin-top: 4px"
                          :key="dataIdx"
                          v-for="(data, dataIdx) in item.items"
-                         v-show="data.totalAmount > 0">
-                        <div class="full-line display-flex flex-direction-row">
-                            <div class="display-inline-flex" :style="{ 'width': (item.percent * data.totalAmount / item.maxAmount) + '%' }">
+                         v-show="data.value.isPositive()">
+                        <div class="width-100 display-flex flex-direction-row">
+                            <div class="display-inline-flex" :style="{ 'width': data.value.divide(item.maxAmount).multiply(item.percent).toDoubleNumber() + '%' }">
                                 <f7-progressbar :progress="100" :style="{ '--f7-progressbar-progress-color': (data.color ? data.color : '') } "></f7-progressbar>
                             </div>
-                            <div class="display-inline-flex" :style="{ 'width': (100.0 - item.percent * data.totalAmount / item.maxAmount) + '%' }"
-                                 v-if="item.percent * data.totalAmount / item.maxAmount < 100.0">
+                            <div class="display-inline-flex" :style="{ 'width': (100.0 - data.value.divide(item.maxAmount).multiply(item.percent).toDoubleNumber()) + '%' }"
+                                 v-if="data.value.divide(item.maxAmount).multiply(item.percent).lessThan(100)">
                                 <f7-progressbar :progress="0"></f7-progressbar>
                             </div>
                         </div>
@@ -95,10 +95,10 @@
             <template #inner-end>
                 <div class="statistics-item-end" v-if="stacked || item.items.length <= 1">
                     <div class="statistics-percent-line statistics-multi-percent-line display-flex">
-                        <div class="display-inline-flex" :style="{ 'width': (item.percent * data.totalAmount / item.totalPositiveAmount) + '%' }"
+                        <div class="display-inline-flex" :style="{ 'width': (data.value.divide(item.totalPositiveAmount).multiply(item.percent).toDoubleNumber()) + '%' }"
                              :key="dataIdx"
                              v-for="(data, dataIdx) in item.items"
-                             v-show="data.totalAmount > 0">
+                             v-show="data.value.isPositive()">
                             <f7-progressbar :progress="100" :style="{ '--f7-progressbar-progress-color': (data.color ? data.color : '') } "></f7-progressbar>
                         </div>
                         <div class="display-inline-flex" :style="{ 'width': (100.0 - item.percent) + '%' }"
@@ -123,26 +123,27 @@ import {
     useTrendsChartBase
 } from '@/components/base/TrendsChartBase.ts'
 
+import { useSettingsStore } from '@/stores/setting.ts';
 import { useUserStore } from '@/stores/user.ts';
 
 import { itemAndIndex } from '@/core/base.ts';
+import type { BigDecimal } from '@/core/numeral.ts';
 import {
     type UnixTimeRange,
     DateRangeScene
 } from '@/core/datetime.ts';
-import type { ColorStyleValue } from '@/core/color.ts';
+import type { ColorValue, ColorStyleValue } from '@/core/color.ts';
 import {
     ChartDataAggregationType,
     ChartDateAggregationType
 } from '@/core/statistics.ts';
 
-import { DEFAULT_CHART_COLORS } from '@/consts/color.ts';
-
 import type { SortableTransactionStatisticDataItem } from '@/models/transaction.ts';
 
 import {
-    isNumber
-} from '@/lib/common.ts';
+    BIG_DECIMAL_ZERO,
+    isBigDecimal
+} from '@/lib/numeral.ts';
 import {
     parseDateTimeFromUnixTime,
     getYearMonthFirstUnixTime,
@@ -165,7 +166,7 @@ interface TrendsBarChartLegend {
 }
 
 interface TrendsBarChartDataAmount extends SortableTransactionStatisticDataItem, TrendsBarChartLegend {
-    totalAmount: number;
+    value: BigDecimal;
 }
 
 interface TrendsBarChartDataItem {
@@ -173,9 +174,9 @@ interface TrendsBarChartDataItem {
     dateRange: UnixTimeRange;
     displayDateRange: string;
     items: TrendsBarChartDataAmount[];
-    totalAmount: number;
-    totalPositiveAmount: number;
-    maxAmount: number;
+    totalAmount: BigDecimal;
+    totalPositiveAmount: BigDecimal;
+    maxAmount: BigDecimal;
     percent: number;
 }
 
@@ -211,6 +212,7 @@ const {
 
 const { allDateRanges, getItemName } = useTrendsChartBase(props);
 
+const settingsStore = useSettingsStore();
 const userStore = useUserStore();
 
 const allDisplayDataItemsVersion = ref<number>(0);
@@ -221,6 +223,7 @@ const virtualDataItems = ref<TrendsBarChartVirtualListData>({
     topPosition: 0
 });
 
+const chartColors = computed<ColorValue[]>(() => settingsStore.chartColorList);
 const useVirtualList = computed<boolean>(() => allDisplayDataItems.value.legends.length <= 1 || props.stacked);
 
 const allDisplayDataItems = computed<TrendsBarChartData>(() => {
@@ -228,17 +231,17 @@ const allDisplayDataItems = computed<TrendsBarChartData>(() => {
     const legends: TrendsBarChartLegend[] = [];
 
     for (const [item, index] of itemAndIndex(props.items)) {
-        if (props.hiddenField && item[props.hiddenField]) {
+        if (item.hidden) {
             continue;
         }
 
-        const id = (props.idField && item[props.idField]) ? item[props.idField] as string : getItemName(item[props.nameField] as string);
+        const id = item.id ?? getItemName(item.name);
 
         const legend: TrendsBarChartLegend = {
             id: id,
-            name: (props.nameField && item[props.nameField]) ? getItemName(item[props.nameField] as string) : id,
-            color: getDisplayColor(props.colorField && item[props.colorField] ? item[props.colorField] as string : DEFAULT_CHART_COLORS[index % DEFAULT_CHART_COLORS.length]),
-            displayOrders: (props.displayOrdersField && item[props.displayOrdersField]) ? item[props.displayOrdersField] as number[] : [0]
+            name: item.name ? getItemName(item.name) : id,
+            color: getDisplayColor(props.useCustomColor && item.color ? item.color : chartColors.value[index % chartColors.value.length]),
+            displayOrders: item.displayOrders ? item.displayOrders : [0]
         };
 
         legends.push(legend);
@@ -284,20 +287,20 @@ const allDisplayDataItems = computed<TrendsBarChartData>(() => {
                 }
             }
 
-            const value = (dataItem as unknown as Record<string, unknown>)[props.valueField];
+            const value = dataItem.value;
 
             if (dateRangeItemMap[dateRangeKey]) {
-                if (isNumber(value)) {
+                if (isBigDecimal(value)) {
                     if (props.dataAggregationType === ChartDataAggregationType.Sum) {
-                        dateRangeItemMap[dateRangeKey]!.totalAmount += value;
+                        dateRangeItemMap[dateRangeKey]!.value = dateRangeItemMap[dateRangeKey]!.value.add(value);
                     } else if (props.dataAggregationType === ChartDataAggregationType.Last) {
-                        dateRangeItemMap[dateRangeKey]!.totalAmount = value;
+                        dateRangeItemMap[dateRangeKey]!.value = value;
                     }
                 }
             } else {
                 const allDataItems: TrendsBarChartDataAmount[] = allDateRangeItemsMap[dateRangeKey] || [];
                 const finalDataItem: TrendsBarChartDataAmount = Object.assign({}, legend, {
-                    totalAmount: isNumber(value) ? value : 0
+                    value: isBigDecimal(value) ? value : BIG_DECIMAL_ZERO
                 });
 
                 allDataItems.push(finalDataItem);
@@ -308,7 +311,7 @@ const allDisplayDataItems = computed<TrendsBarChartData>(() => {
     }
 
     const finalDataItems: TrendsBarChartDataItem[] = [];
-    let maxTotalAmount = 0;
+    let maxTotalAmount: BigDecimal = BIG_DECIMAL_ZERO;
 
     for (const dateRange of allDateRanges.value) {
         let dateRangeKey = '';
@@ -341,25 +344,25 @@ const allDisplayDataItems = computed<TrendsBarChartData>(() => {
         }
 
         const dataItems = allDateRangeItemsMap[dateRangeKey] || [];
-        let totalAmount = 0;
-        let totalPositiveAmount = 0;
-        let maxAmount = 0;
+        let totalAmount: BigDecimal = BIG_DECIMAL_ZERO;
+        let totalPositiveAmount = BIG_DECIMAL_ZERO;
+        let maxAmount = BIG_DECIMAL_ZERO;
 
         sortStatisticsItems(dataItems, props.sortingType);
 
         for (const dataItem of dataItems) {
-            if (dataItem.totalAmount > 0) {
-                totalPositiveAmount += dataItem.totalAmount;
+            if (dataItem.value.isPositive()) {
+                totalPositiveAmount = totalPositiveAmount.add(dataItem.value);
             }
 
-            totalAmount += dataItem.totalAmount;
+            totalAmount = totalAmount.add(dataItem.value);
 
-            if (dataItem.totalAmount > maxAmount) {
-                maxAmount = dataItem.totalAmount;
+            if (dataItem.value.greaterThan(maxAmount)) {
+                maxAmount = dataItem.value;
             }
         }
 
-        if (totalAmount > maxTotalAmount) {
+        if (totalAmount.greaterThan(maxTotalAmount)) {
             maxTotalAmount = totalAmount;
         }
 
@@ -378,8 +381,8 @@ const allDisplayDataItems = computed<TrendsBarChartData>(() => {
     }
 
     for (const finalDataItem of finalDataItems) {
-        if (maxTotalAmount > 0 && finalDataItem.totalAmount > 0) {
-            finalDataItem.percent = 100.0 * finalDataItem.totalAmount / maxTotalAmount;
+        if (maxTotalAmount.isPositive() && finalDataItem.totalAmount.isPositive()) {
+            finalDataItem.percent = finalDataItem.totalAmount.divide(maxTotalAmount).multiply(100).toDoubleNumber();
         } else {
             finalDataItem.percent = 0.0;
         }
@@ -395,11 +398,11 @@ function clickItem(item: TrendsBarChartDataItem): void {
     let itemId = '';
 
     for (const item of props.items) {
-        if (!props.hiddenField || item[props.hiddenField]) {
+        if (item.hidden) {
             continue;
         }
 
-        const id = (props.idField && item[props.idField]) ? item[props.idField] as string : getItemName(item[props.nameField] as string);
+        const id = item.id ?? getItemName(item.name);
 
         if (unselectedLegends.value[id]) {
             continue;

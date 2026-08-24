@@ -1,0 +1,107 @@
+<template>
+    <v-dialog width="600" :persistent="true" v-model="showState">
+        <one-column-dialog-layout :disabled="deleting"
+                                  :title="tt('Delete Transactions')" :cancel-button-title="tt('Cancel')"
+                                  @cancel="cancel">
+            <template #content>
+                <div class="text-body-large text-error">{{ tt('format.misc.deleteTransactionsTip', { count: formatNumberToLocalizedNumerals(deleteIds?.length ?? 0) }) }}</div>
+                <div class="w-100 d-flex justify-center mt-1">
+                    <div class="w-100">
+                        <v-text-field
+                            autocomplete="current-password"
+                            type="password"
+                            variant="underlined"
+                            color="error"
+                            :disabled="deleting"
+                            :placeholder="tt('Current Password')"
+                            v-model="currentPassword"
+                        />
+                    </div>
+                </div>
+            </template>
+
+            <template #footer>
+                <v-btn color="secondary" variant="tonal" :disabled="deleting" @click="cancel">{{ tt('Cancel') }}</v-btn>
+                <v-spacer/>
+                <v-btn color="error" :disabled="!currentPassword || deleting || deleteIds.length < 1" @click="confirm">
+                    {{ tt('Confirm') }}
+                    <v-progress-circular indeterminate size="22" class="ms-2" v-if="deleting"></v-progress-circular>
+                </v-btn>
+            </template>
+        </one-column-dialog-layout>
+    </v-dialog>
+
+    <snack-bar ref="snackbar" />
+</template>
+
+<script setup lang="ts">
+import SnackBar from '@/components/desktop/SnackBar.vue';
+
+import { ref, useTemplateRef } from 'vue';
+
+import { useI18n } from '@/locales/helpers.ts';
+
+import { useTransactionsStore } from '@/stores/transaction.ts';
+
+type SnackBarType = InstanceType<typeof SnackBar>;
+
+const {
+    tt,
+    formatNumberToLocalizedNumerals
+} = useI18n();
+
+const transactionsStore = useTransactionsStore();
+
+const snackbar = useTemplateRef<SnackBarType>('snackbar');
+
+const showState = ref<boolean>(false);
+const deleting = ref<boolean>(false);
+const deleteIds = ref<string[]>([]);
+const currentPassword = ref<string>('');
+const tryDeleted = ref<boolean>(false);
+
+let resolveFunc: ((response: number) => void) | null = null;
+let rejectFunc: ((tryDeleted: boolean) => void) | null = null;
+
+function open(options: { updateIds: string[] }): Promise<number> {
+    deleteIds.value = options.updateIds;
+    currentPassword.value = '';
+    deleting.value = false;
+    tryDeleted.value = false;
+    showState.value = true;
+
+    return new Promise((resolve, reject) => {
+        resolveFunc = resolve;
+        rejectFunc = reject;
+    });
+}
+
+function confirm(): void {
+    deleting.value = true;
+    tryDeleted.value = true;
+
+    transactionsStore.batchDeleteTransactions({
+        transactionIds: deleteIds.value,
+        password: currentPassword.value
+    }).then(() => {
+        deleting.value = false;
+        showState.value = false;
+        resolveFunc?.(deleteIds.value.length);
+    }).catch(error => {
+        deleting.value = false;
+
+        if (!error.processed) {
+            snackbar.value?.showError(error);
+        }
+    });
+}
+
+function cancel(): void {
+    rejectFunc?.(tryDeleted.value);
+    showState.value = false;
+}
+
+defineExpose({
+    open
+});
+</script>

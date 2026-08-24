@@ -9,7 +9,7 @@
             </f7-nav-right>
         </f7-navbar>
 
-        <f7-list strong inset dividers class="margin-vertical skeleton-text" v-if="loading">
+        <f7-list strong inset dividers class="margin-vertical-half skeleton-text" v-if="loading">
             <f7-list-input label="Password" placeholder="Your password"></f7-list-input>
             <f7-list-input label="Confirm Password" placeholder="Re-enter the password"></f7-list-input>
             <f7-list-input label="E-mail" placeholder="Your email address"></f7-list-input>
@@ -18,6 +18,7 @@
 
         <f7-list strong inset dividers class="margin-vertical skeleton-text" v-if="loading">
             <f7-list-item class="list-item-with-header-and-title list-item-no-item-after" header="Default Account" title="Unspecified"></f7-list-item>
+            <f7-list-item class="list-item-with-header-and-title list-item-no-item-after" header="Use Last Reconciled Time" title="Disabled"></f7-list-item>
             <f7-list-item class="list-item-with-header-and-title list-item-no-item-after" header="Editable Transaction Range" title="All" link="#"></f7-list-item>
         </f7-list>
 
@@ -54,7 +55,7 @@
             <f7-list-item class="list-item-with-header-and-title list-item-no-item-after" header="Income Amount Color" title="Amount Color" link="#"></f7-list-item>
         </f7-list>
 
-        <f7-list form strong inset dividers class="margin-vertical" v-if="!loading">
+        <f7-list form strong inset dividers class="margin-vertical-half" v-if="!loading">
             <f7-list-input
                 type="password"
                 autocomplete="new-password"
@@ -105,17 +106,40 @@
             >
                 <two-column-list-item-selection-sheet primary-key-field="id" primary-value-field="category"
                                                       primary-title-field="name"
-                                                      primary-icon-field="icon" primary-icon-type="account"
+                                                      primary-icon-field="icon" primary-icon-type-field="iconType" primary-icon-type="account"
                                                       primary-sub-items-field="accounts"
                                                       :primary-title-i18n="true"
                                                       secondary-key-field="id" secondary-value-field="id"
                                                       secondary-title-field="name"
-                                                      secondary-icon-field="icon" secondary-icon-type="account" secondary-color-field="color"
+                                                      secondary-icon-field="icon" secondary-icon-type-field="iconType" secondary-icon-type="account" secondary-color-field="color"
                                                       :enable-filter="true" :filter-placeholder="tt('Find account')" :filter-no-items-text="tt('No available account')"
                                                       :items="allVisibleCategorizedAccounts"
                                                       v-model:show="showAccountSheet"
                                                       v-model="newProfile.defaultAccountId">
                 </two-column-list-item-selection-sheet>
+            </f7-list-item>
+
+            <f7-list-item
+                link="#" no-chevron
+                class="list-item-with-header-and-title list-item-no-item-after"
+                popover-open=".use-last-reconciled-time-popover-menu"
+                :header="tt('Use Last Reconciled Time')"
+                :title="getEnableDisableOption(newProfile.useLastReconciledTime)"
+            >
+                <f7-popover class="use-last-reconciled-time-popover-menu">
+                    <f7-list dividers>
+                        <f7-list-item link="#" no-chevron popover-close
+                                      :title="option.displayName"
+                                      :class="{ 'list-item-selected': newProfile.useLastReconciledTime === option.value, 'disabled': !option.value && (TransactionEditScopeType.valueOf(newProfile.transactionEditScope)?.needLastReconciledTime ?? false) }"
+                                      :key="option.value"
+                                      v-for="option in enableDisableOptions"
+                                      @click="newProfile.useLastReconciledTime = option.value">
+                            <template #after>
+                                <f7-icon class="list-item-checked-icon" f7="checkmark_alt" v-if="newProfile.useLastReconciledTime === option.value"></f7-icon>
+                            </template>
+                        </f7-list-item>
+                    </f7-list>
+                </f7-popover>
             </f7-list-item>
 
             <f7-list-item
@@ -572,6 +596,7 @@ import { useAccountsStore } from '@/stores/account.ts';
 import { TextDirection } from '@/core/text.ts';
 import { NumeralSystem } from '@/core/numeral.ts';
 import type { LocalizedCurrencyInfo } from '@/core/currency.ts';
+import { TransactionEditScopeType } from '@/core/transaction.ts';
 
 import type { UserProfileResponse } from '@/models/user.ts';
 import { Account } from '@/models/account.ts';
@@ -588,6 +613,7 @@ const {
     getCurrentLanguageTextDirection,
     getAllLanguageOptions,
     getAllCurrencies,
+    getEnableDisableOption,
     getCurrencyName,
     formatFiscalYearStartToGregorianLikeLongMonth
 } = useI18n();
@@ -620,6 +646,7 @@ const {
     allExpenseAmountColorTypes,
     allIncomeAmountColorTypes,
     allTransactionEditScopeTypes,
+    enableDisableOptions,
     languageTitle,
     supportDigitGroupingSymbol,
     inputIsNotChangedProblemMessage,

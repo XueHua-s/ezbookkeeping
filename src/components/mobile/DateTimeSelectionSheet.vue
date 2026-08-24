@@ -4,7 +4,8 @@
         <f7-toolbar class="toolbar-with-swipe-handler">
             <div class="swipe-handler"></div>
             <div class="left">
-                <f7-link :text="tt('Now')" @click="setCurrentTime"></f7-link>
+                <f7-link :text="tt('Clear')" @click="clear" v-if="clearable"></f7-link>
+                <f7-link :text="tt('Now')" @click="setCurrentTime" v-if="!clearable"></f7-link>
             </div>
             <div class="right">
                 <f7-link :icon-f7="mode === 'time' ? 'calendar' : 'clock'" @click="switchMode"></f7-link>
@@ -122,11 +123,13 @@ const props = defineProps<{
     modelValue: number;
     timezoneUtcOffset: number;
     initMode?: string;
+    clearable?: boolean;
     show: boolean;
 }>();
 
 const emit = defineEmits<{
     (e: 'update:modelValue', value: number): void;
+    (e: 'clear:modelValue'): void;
     (e: 'update:show', value: boolean): void;
 }>();
 
@@ -219,6 +222,11 @@ function setCurrentTime(): void {
     if (mode.value === 'time') {
         scrollAllTimeSelectedItems();
     }
+}
+
+function clear(): void {
+    emit('clear:modelValue');
+    emit('update:show', false);
 }
 
 function confirm(): void {
@@ -451,7 +459,7 @@ watch(mode, (newValue) => {
 </script>
 
 <style>
-.date-time-selection-sheet .dp__menu {
+.date-time-selection-sheet .dp--menu {
     border: 0;
 }
 

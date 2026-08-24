@@ -26,7 +26,8 @@
                                   :key="primaryKeyField ? item[primaryKeyField] : item"
                                   v-for="item in filteredItems">
                     <template #media>
-                        <ItemIcon :icon-type="primaryIconType" :icon-id="item[primaryIconField]"
+                        <ItemIcon :icon-type="getIconType(primaryIconType, primaryIconTypeField ? item[primaryIconTypeField] : undefined)"
+                                  :icon-id="item[primaryIconField]"
                                   :color="primaryColorField ? item[primaryColorField] : undefined" v-if="primaryIconField"></ItemIcon>
                     </template>
 
@@ -37,7 +38,8 @@
                                       v-for="subItem in getFilteredSubItems(item)"
                                       @click="onSecondaryItemClicked(subItem)">
                         <template #media>
-                            <ItemIcon :icon-type="secondaryIconType" :icon-id="(subItem as Record<string, unknown>)[secondaryIconField]"
+                            <ItemIcon :icon-type="getIconType(secondaryIconType, secondaryIconTypeField ? (subItem as Record<string, unknown>)[secondaryIconTypeField] : undefined)"
+                                      :icon-id="(subItem as Record<string, unknown>)[secondaryIconField]"
                                       :color="secondaryColorField ? (subItem as Record<string, unknown>)[secondaryColorField] : undefined" v-if="secondaryIconField"></ItemIcon>
                         </template>
                     </f7-treeview-item>
@@ -54,6 +56,9 @@ import type { Sheet, Searchbar } from 'framework7/types';
 import { useI18n } from '@/locales/helpers.ts';
 import { type TwoLevelItemSelectionBaseProps, useTwoLevelItemSelectionBase } from '@/components/base/TwoLevelItemSelectionBase.ts';
 
+import { NormalizedText } from '@/core/text.ts';
+
+import { getIconType } from '@/lib/icon.ts';
 import { scrollToSelectedItem } from '@/lib/ui/common.ts';
 import { type Framework7Dom, scrollSheetToTop } from '@/lib/ui/mobile.ts';
 
@@ -101,17 +106,17 @@ function isPrimaryItemHasSecondaryValue(primaryItem: Record<string, unknown>): b
         return false;
     }
 
-    const lowerCaseFilterContent = filterContent.value?.toLowerCase() ?? '';
+    const normalizedFilterContent = NormalizedText.normalizeForSearch(filterContent.value ?? '');
 
     for (const secondaryItem of subItems) {
         if (props.secondaryHiddenField && (secondaryItem as Record<string, unknown>)[props.secondaryHiddenField]) {
             continue;
         }
 
-        if (props.primaryTitleField && lowerCaseFilterContent) {
+        if (props.primaryTitleField && normalizedFilterContent) {
             const title = ti((secondaryItem as Record<string, unknown>)[props.primaryTitleField] as string, !!props.primaryTitleI18n);
 
-            if (title.toLowerCase().indexOf(lowerCaseFilterContent) >= 0) {
+            if (NormalizedText.normalizeForSearch(title).indexOf(normalizedFilterContent) >= 0) {
                 return true;
             }
         }

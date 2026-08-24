@@ -20,8 +20,8 @@
             <div class="transaction-calendar-daily-amounts">
                 <span :class="dayHasTransactionClass && dailyTotalAmounts && dailyTotalAmounts[day] ? dayHasTransactionClass : undefined">{{ getDisplayDay(date) }}</span>
                 <span class="transaction-calendar-alternate-date" v-if="alternateDates && alternateDates[`${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`]">{{ alternateDates[`${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`] }}</span>
-                <span class="transaction-calendar-daily-amount text-income" v-if="dailyTotalAmounts && dailyTotalAmounts[day] && dailyTotalAmounts[day].income">{{ getDisplayMonthTotalAmount(dailyTotalAmounts[day].income, defaultCurrency, '', dailyTotalAmounts[day].incompleteIncome) }}</span>
-                <span class="transaction-calendar-daily-amount text-expense" v-if="dailyTotalAmounts && dailyTotalAmounts[day] && dailyTotalAmounts[day].expense">{{ getDisplayMonthTotalAmount(dailyTotalAmounts[day].expense, defaultCurrency, '', dailyTotalAmounts[day].incompleteExpense) }}</span>
+                <span class="transaction-calendar-daily-amount text-income" v-if="dailyTotalAmounts && dailyTotalAmounts[day] && dailyTotalAmounts[day].income && !dailyTotalAmounts[day].income.isZero()">{{ getDisplayMonthTotalAmount(dailyTotalAmounts[day].income, defaultCurrency, '', dailyTotalAmounts[day].incompleteIncome) }}</span>
+                <span class="transaction-calendar-daily-amount text-expense" v-if="dailyTotalAmounts && dailyTotalAmounts[day] && dailyTotalAmounts[day].expense && !dailyTotalAmounts[day].expense.isZero()">{{ getDisplayMonthTotalAmount(dailyTotalAmounts[day].expense, defaultCurrency, '', dailyTotalAmounts[day].incompleteExpense) }}</span>
             </div>
         </template>
     </vue-date-picker>
@@ -34,6 +34,7 @@ import { useI18n } from '@/locales/helpers.ts';
 import { useUserStore } from '@/stores/user.ts';
 import type { TransactionTotalAmount } from '@/stores/transaction.ts';
 
+import type { BigDecimal } from '@/core/numeral.ts';
 import type { CalendarAlternateDate, TextualYearMonthDay, WeekDayValue } from '@/core/datetime.ts';
 import { INCOMPLETE_AMOUNT_SUFFIX } from '@/consts/numeral.ts';
 
@@ -101,7 +102,7 @@ function noTransactionInMonthDay(date: Date): boolean {
     return !props.dailyTotalAmounts || !props.dailyTotalAmounts[date.getDate()];
 }
 
-function getDisplayMonthTotalAmount(amount: number, currency: string | false, symbol: string, incomplete: boolean): string {
+function getDisplayMonthTotalAmount(amount: BigDecimal, currency: string | false, symbol: string, incomplete: boolean): string {
     const displayAmount = formatAmountToLocalizedNumeralsWithCurrency(amount, currency);
     return symbol + displayAmount + (incomplete ? INCOMPLETE_AMOUNT_SUFFIX : '');
 }
@@ -121,15 +122,15 @@ function getDisplayDay(date: Date): string {
 
 .transaction-calendar-alternate-date {
     margin-top: -3px;
-    opacity: 0.5;
+    opacity: 0.6;
 }
 
-.dp__cell_disabled .transaction-calendar-alternate-date {
+.dp--cell-disabled .transaction-calendar-alternate-date {
     opacity: 0.8;
 }
 
-.dp__main.transaction-calendar .dp__calendar .dp__calendar_row > .dp__calendar_item .transaction-calendar-daily-amounts > span.transaction-calendar-alternate-date,
-.dp__main.transaction-calendar .dp__calendar .dp__calendar_row > .dp__calendar_item .transaction-calendar-daily-amounts > span.transaction-calendar-daily-amount {
+.dp--main.transaction-calendar .dp--calendar .dp--calendar-row > .dp--calendar-item .transaction-calendar-daily-amounts > span.transaction-calendar-alternate-date,
+.dp--main.transaction-calendar .dp--calendar .dp--calendar-row > .dp--calendar-item .transaction-calendar-daily-amounts > span.transaction-calendar-daily-amount {
     display: block;
     width: 100%;
     overflow: hidden;

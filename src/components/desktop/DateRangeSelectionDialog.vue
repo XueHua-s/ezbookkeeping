@@ -1,36 +1,37 @@
 <template>
     <v-dialog class="date-range-selection-dialog" width="640" :persistent="!!persistent" v-model="showState">
-        <v-card class="pa-sm-1 pa-md-2">
-            <template #title>
-                <h4 class="text-h4">{{ title }}</h4>
+        <one-column-dialog-layout :title="title" :cancel-button-title="tt('Cancel')"
+                                  @cancel="cancel">
+            <template #toolbar>
+                <v-btn class="mx-2" density="comfortable" variant="outlined"
+                       :disabled="!dateRange[0] || !dateRange[1]" @click="confirm">{{ tt('OK') }}</v-btn>
             </template>
-            <template #subtitle>
-                <div class="text-body-1 text-wrap mt-2">
-                    <p v-if="hint">{{ hint }}</p>
-                    <span v-if="beginDateTime && endDateTime">
-                        <span>{{ beginDateTime }}</span>
-                        <span> - </span>
-                        <span>{{ endDateTime }}</span>
-                    </span>
+
+            <template #content>
+                <div class="text-body-large" v-if="beginDateTime && endDateTime">
+                    <span>{{ beginDateTime }}</span>
+                    <span> - </span>
+                    <span>{{ endDateTime }}</span>
+                </div>
+
+                <div class="text-body-large text-wrap mt-3" v-if="hint">
+                    <span>{{ hint }}</span>
                     <slot></slot>
                 </div>
+
+                <v-row class="mt-3">
+                    <v-col>
+                        <date-time-picker :is-dark-mode="isDarkMode"
+                                          :enable-time-picker="true"
+                                          :vertical="true"
+                                          :preset-dates="presetRanges"
+                                          :show-alternate-dates="true"
+                                          v-model="dateRange">
+                        </date-time-picker>
+                    </v-col>
+                </v-row>
             </template>
-            <v-card-text class="w-100 d-flex justify-center">
-                <date-time-picker :is-dark-mode="isDarkMode"
-                                  :enable-time-picker="true"
-                                  :vertical="true"
-                                  :preset-dates="presetRanges"
-                                  :show-alternate-dates="true"
-                                  v-model="dateRange">
-                </date-time-picker>
-            </v-card-text>
-            <v-card-text>
-                <div class="w-100 d-flex justify-center flex-wrap mt-sm-1 mt-md-2 gap-4">
-                    <v-btn :disabled="!dateRange[0] || !dateRange[1]" @click="confirm">{{ tt('OK') }}</v-btn>
-                    <v-btn color="secondary" variant="tonal" @click="cancel">{{ tt('Cancel') }}</v-btn>
-                </div>
-            </v-card-text>
-        </v-card>
+        </one-column-dialog-layout>
     </v-dialog>
 </template>
 
@@ -106,7 +107,7 @@ watch(() => props.maxTime, (newValue) => {
 </script>
 
 <style>
-.date-range-selection-dialog .dp__preset_ranges {
+.date-range-selection-dialog .dp--main .dp--instance-calendar .dp--preset-ranges {
     white-space: nowrap !important;
 }
 </style>

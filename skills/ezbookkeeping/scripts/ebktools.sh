@@ -7,7 +7,7 @@
 API_CONFIGS='[
     {
     "Name": "tokens-list",
-        "Description": "Retrieve all sessions for the current user",
+    "Description": "Retrieve all sessions for the current user",
     "Method": "GET",
     "Path": "tokens/list.json",
     "RequiresTimezone": false,
@@ -68,9 +68,10 @@ API_CONFIGS='[
       "    \"category\": \"integer (Account category, 1: Cash, 2: Checking Account, 3: Credit Card, 4: Virtual Account, 5: Debt Account, 6: Receivables, 7: Investment Account, 8: Savings Account, 9: Certificate of Deposit)\",",
       "    \"type\": \"integer (Account type, 1: Single Account, 2: Multiple Sub-accounts)\",",
       "    \"icon\": \"string (Account icon ID)\",",
+      "    \"iconType\": \"integer (Account icon type, 0: System icon, 1: User custom icon)\",",
       "    \"color\": \"string (Account icon color, hex color code RRGGBB)\",",
       "    \"currency\": \"string (Account currency code)\",",
-      "    \"balance\": \"integer (Account balance, supports up to two decimals. For example, a value of '"'"'1234'"'"' represents an amount of '"'"'12.34'"'"')\",",
+      "    \"balance\": \"string (Account balance, supports up to two decimals. For example, a value of '"'"'1234'"'"' represents an amount of '"'"'12.34'"'"')\",",
       "    \"comment\": \"string (Account description)\",",
       "    \"creditCardStatementDate\": \"integer (The statement date of the credit card account)\",",
       "    \"displayOrder\": \"integer (The display order of the account)\",",
@@ -93,16 +94,17 @@ API_CONFIGS='[
     "Method": "POST",
     "Path": "accounts/add.json",
     "RequiresTimezone": true,
-    "RequiredParams": ["name", "category", "type", "icon", "color", "currency"],
+    "RequiredParams": ["name", "category", "type", "icon", "iconType", "color", "currency"],
     "OptionalParams": ["balance", "balanceTime", "comment", "creditCardStatementDate"],
     "ParamTypes": {
       "name": "string",
       "category": "integer",
       "type": "integer",
       "icon": "string",
+      "iconType": "integer",
       "color": "string",
       "currency": "string",
-      "balance": "integer",
+      "balance": "string",
       "balanceTime": "integer",
       "comment": "string",
       "creditCardStatementDate": "integer"
@@ -112,9 +114,10 @@ API_CONFIGS='[
       "category": "integer (Account category, 1: Cash, 2: Checking Account, 3: Credit Card, 4: Virtual Account, 5: Debt Account, 6: Receivables, 7: Investment Account, 8: Savings Account, 9: Certificate of Deposit)",
       "type": "integer (Account type, 1: Single Account, 2: Multiple Sub-accounts)",
       "icon": "string (Account icon ID)",
+      "iconType": "integer (Account icon type, 0: System icon, 1: User custom icon)",
       "color": "string (Account icon color, hex color code RRGGBB)",
       "currency": "string (Account currency code, ISO 4217 code, '"'"'---'"'"' for the parent account)",
-      "balance": "integer (Account balance, supports up to two decimals. For example, a value of '"'"'1234'"'"' represents an amount of '"'"'12.34'"'"'. Liability account should set to negative amount)",
+      "balance": "string (Account balance, supports up to two decimals. For example, a value of '"'"'1234'"'"' represents an amount of '"'"'12.34'"'"'. Liability account should set to negative amount)",
       "balanceTime": "integer (The unix time when the account balance is the set value. This field is required when balance is set)",
       "comment": "string (Account description)",
       "creditCardStatementDate": "integer (The statement date of the credit card account)"
@@ -127,9 +130,10 @@ API_CONFIGS='[
       "  \"category\": \"integer (Account category)\",",
       "  \"type\": \"integer (Account type)\",",
       "  \"icon\": \"string (Account icon ID)\",",
+      "  \"iconType\": \"integer (Account icon type, 0: System icon, 1: User custom icon)\",",
       "  \"color\": \"string (Account icon color)\",",
       "  \"currency\": \"string (Account currency code)\",",
-      "  \"balance\": \"integer (Account balance)\",",
+      "  \"balance\": \"string (Account balance)\",",
       "  \"comment\": \"string (Account description)\",",
       "  \"creditCardStatementDate\": \"integer (The statement date of the credit card account)\",",
       "  \"displayOrder\": \"integer (The display order of the account)\",",
@@ -159,6 +163,7 @@ API_CONFIGS='[
       "      \"parentId\": \"string (Parent transaction category ID, 0 for primary category)\",",
       "      \"type\": \"integer (Transaction category type, 1: Income, 2: Expense, 3: Transfer)\",",
       "      \"icon\": \"string (Transaction category icon ID)\",",
+      "      \"iconType\": \"integer (Transaction category icon type, 0: System icon, 1: User custom icon)\",",
       "      \"color\": \"string (Transaction category icon color, hex color code RRGGBB)\",",
       "      \"comment\": \"string (Transaction category description)\",",
       "      \"displayOrder\": \"integer (The display order of the transaction category)\",",
@@ -180,13 +185,14 @@ API_CONFIGS='[
     "Method": "POST",
     "Path": "transaction/categories/add.json",
     "RequiresTimezone": false,
-    "RequiredParams": ["name", "type", "icon", "color"],
+    "RequiredParams": ["name", "type", "icon", "iconType", "color"],
     "OptionalParams": ["parentId", "comment"],
     "ParamTypes": {
       "name": "string",
       "type": "integer",
       "parentId": "string",
       "icon": "string",
+      "iconType": "integer",
       "color": "string",
       "comment": "string"
     },
@@ -195,6 +201,7 @@ API_CONFIGS='[
       "type": "integer (Transaction category type, 1: Income, 2: Expense, 3: Transfer)",
       "parentId": "string (Parent transaction category ID, 0 for primary category)",
       "icon": "string (Transaction category icon ID)",
+      "iconType": "integer (Transaction category icon type, 0: System icon, 1: User custom icon)",
       "color": "string (Transaction category icon color, hex color code RRGGBB)",
       "comment": "string (Transaction category description)"
     },
@@ -205,6 +212,7 @@ API_CONFIGS='[
       "  \"parentId\": \"string (Parent transaction category ID)\",",
       "  \"type\": \"integer (Transaction category type)\",",
       "  \"icon\": \"string (Transaction category icon ID)\",",
+      "  \"iconType\": \"integer (Transaction category icon type, 0: System icon, 1: User custom icon)\",",
       "  \"color\": \"string (Transaction category icon color)\",",
       "  \"comment\": \"string (Transaction category description)\",",
       "  \"displayOrder\": \"integer (The display order of the transaction category)\",",
@@ -272,7 +280,7 @@ API_CONFIGS='[
     "Path": "transactions/list.json",
     "RequiresTimezone": true,
     "RequiredParams": ["count"],
-    "OptionalParams": ["type", "category_ids", "account_ids", "tag_filter", "amount_filter", "keyword", "max_time", "min_time", "page", "with_count", "with_pictures", "trim_account", "trim_category", "trim_tag"],
+    "OptionalParams": ["type", "category_ids", "account_ids", "tag_filter", "amount_filter", "keyword", "must_have_pictures", "max_time", "min_time", "page", "with_count", "with_pictures", "trim_account", "trim_category", "trim_tag"],
     "ParamTypes": {
       "count": "integer",
       "type": "integer",
@@ -281,6 +289,7 @@ API_CONFIGS='[
       "tag_filter": "string",
       "amount_filter": "string",
       "keyword": "string",
+      "must_have_pictures": "boolean",
       "max_time": "integer",
       "min_time": "integer",
       "page": "integer",
@@ -298,6 +307,7 @@ API_CONFIGS='[
       "tag_filter": "string (Filter by tags)",
       "amount_filter": "string (Filter by amount)",
       "keyword": "string (Filter by keyword)",
+      "must_have_pictures": "boolean (Whether to only get transactions with pictures)",
       "max_time": "integer (The maximum time sequence ID, Set to 0 for latest)",
       "min_time": "integer (The minimum time sequence ID)",
       "page": "integer (Specified page integer)",
@@ -354,7 +364,7 @@ API_CONFIGS='[
     "Path": "transactions/list/all.json",
     "RequiresTimezone": true,
     "RequiredParams": [],
-    "OptionalParams": ["type", "category_ids", "account_ids", "tag_filter", "amount_filter", "keyword", "start_time", "end_time", "with_pictures", "trim_account", "trim_category", "trim_tag"],
+    "OptionalParams": ["type", "category_ids", "account_ids", "tag_filter", "amount_filter", "keyword", "must_have_pictures", "start_time", "end_time", "with_pictures", "trim_account", "trim_category", "trim_tag"],
     "ParamTypes": {
       "type": "integer",
       "category_ids": "string",
@@ -362,6 +372,7 @@ API_CONFIGS='[
       "tag_filter": "string",
       "amount_filter": "string",
       "keyword": "string",
+      "must_have_pictures": "boolean",
       "start_time": "integer",
       "end_time": "integer",
       "with_pictures": "boolean",
@@ -376,6 +387,7 @@ API_CONFIGS='[
       "tag_filter": "string (Filter by tags)",
       "amount_filter": "string (Filter by amount)",
       "keyword": "string (Filter by keyword)",
+      "must_have_pictures": "boolean (Whether to only get transactions with pictures)",
       "start_time": "integer (Transaction list start unix time)",
       "end_time": "integer (Transaction list end unix time)",
       "with_pictures": "boolean (Whether to get picture IDs)",
@@ -443,9 +455,9 @@ API_CONFIGS='[
       "time": "integer (Transaction unix time)",
       "utcOffset": "integer (Transaction time zone offset minutes)",
       "sourceAccountId": "string (Source account ID, supports account without sub-accounts or sub-account)",
-      "sourceAmount": "integer (Source amount, supports up to two decimals. For example, a value of '"'"'1234'"'"' represents an amount of '"'"'12.34'"'"')",
-      "destinationAccountId": "string (Destination account ID, supports account without sub-accounts or sub-account)",
-      "destinationAmount": "integer (Destination amount, supports up to two decimals. For example, a value of '"'"'1234'"'"' represents an amount of '"'"'12.34'"'"')",
+      "sourceAmount": "integer (Source amount, supports up to two decimals. For example, for an expense transaction, '"'"'1234'"'"' represents an expense of '"'"'12.34'"'"')",
+      "destinationAccountId": "string (Destination account ID for transfer transactions, supports account without sub-accounts or sub-account)",
+      "destinationAmount": "integer (Destination amount for transfer transactions, supports up to two decimals. For example, a value of '"'"'1234'"'"' represents an amount of '"'"'12.34'"'"')",
       "hideAmount": "boolean (Whether to hide amount)",
       "tagIds": "string (Transaction tag IDs, separated by comma, e.g. '"'"'tagid1,tagid2'"'"')",
       "pictureIds": "string (Transaction picture IDs, separated by comma, e.g. '"'"'picid1,picid2'"'"')",
@@ -578,8 +590,11 @@ load_env_file() {
         value="$(echo "$value" | sed -e 's/^["'"'"']//' -e 's/["'"'"']$//')"
 
         case "$key" in
-            EBKTOOL_SERVER_BASEURL|EBKTOOL_TOKEN)
-                eval "$key=\"\$value\""
+            EBKTOOL_SERVER_BASEURL)
+                EBKTOOL_SERVER_BASEURL="$value"
+                ;;
+            EBKTOOL_TOKEN)
+                EBKTOOL_TOKEN="$value"
                 ;;
         esac
     done < "$env_file"
@@ -1124,7 +1139,7 @@ call_api() {
         if [ "$json_params" != "{}" ]; then
             if [ -n "$timezone_headers" ]; then
                 response="$(curl -s -X "POST" \
-                    -H "Authorization: Bearer $EBKTOOL_TOKEN" \
+                    -H "Authorization: Bearer $authToken" \
                     -H "Content-Type: application/json" \
                     -H "$timezone_headers" \
                     -d "$json_params" \
@@ -1132,7 +1147,7 @@ call_api() {
                 curl_exit_code=$?
             else
                 response="$(curl -s -X "POST" \
-                    -H "Authorization: Bearer $EBKTOOL_TOKEN" \
+                    -H "Authorization: Bearer $authToken" \
                     -H "Content-Type: application/json" \
                     -d "$json_params" \
                     "$url")"
@@ -1141,13 +1156,13 @@ call_api() {
         else
             if [ -n "$timezone_headers" ]; then
                 response="$(curl -s -X "POST" \
-                    -H "Authorization: Bearer $EBKTOOL_TOKEN" \
+                    -H "Authorization: Bearer $authToken" \
                     -H "$timezone_headers" \
                     "$url")"
                 curl_exit_code=$?
             else
                 response="$(curl -s -X "POST" \
-                    -H "Authorization: Bearer $EBKTOOL_TOKEN" \
+                    -H "Authorization: Bearer $authToken" \
                     "$url")"
                 curl_exit_code=$?
             fi
@@ -1162,12 +1177,12 @@ call_api() {
 
         if [ -n "$timezone_headers" ]; then
             response="$(curl -s -X "$method" \
-                -H "Authorization: Bearer $EBKTOOL_TOKEN" \
+                -H "Authorization: Bearer $authToken" \
                 -H "$timezone_headers" \
                 "$url")"
         else
             response="$(curl -s -X "$method" \
-                -H "Authorization: Bearer $EBKTOOL_TOKEN" \
+                -H "Authorization: Bearer $authToken" \
                 "$url")"
         fi
         curl_exit_code=$?

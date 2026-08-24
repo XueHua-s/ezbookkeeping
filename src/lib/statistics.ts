@@ -49,8 +49,16 @@ export function sortStatisticsItems<T extends SortableTransactionStatisticDataIt
         });
     } else {
         items.sort(function (data1, data2) {
-            if (data1.totalAmount !== data2.totalAmount) {
-                return data2.totalAmount - data1.totalAmount; // desc
+            const compareValue = data2.value.compareTo(data1.value); // desc
+
+            if (compareValue !== 0) {
+                return compareValue;
+            }
+
+            for (let i = 0; i < Math.min(data1.displayOrders.length, data2.displayOrders.length); i++) {
+                if (data1.displayOrders[i] !== data2.displayOrders[i]) {
+                    return (data1.displayOrders[i] as number) - (data2.displayOrders[i] as number); // asc
+                }
             }
 
             return data1.name.localeCompare(data2.name, undefined, { // asc

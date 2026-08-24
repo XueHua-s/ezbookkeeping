@@ -13,7 +13,7 @@
             </f7-nav-right>
         </f7-navbar>
 
-        <f7-card class="account-overview-card" :class="{ 'skeleton-text': loading }">
+        <f7-card class="account-overview-card margin-top-half" :class="{ 'skeleton-text': loading }">
             <f7-card-header class="display-block" style="padding-top: 120px;">
                 <p class="no-margin">
                     <small class="card-header-content" v-if="loading">Net assets</small>
@@ -95,7 +95,7 @@
                               @taphold="setSortable()"
                 >
                     <template #media v-if="account.type !== AccountType.MultiSubAccounts.type || !hasVisibleSubAccount(account)">
-                        <ItemIcon icon-type="account" :icon-id="account.icon" :color="account.color">
+                        <ItemIcon :icon-type="getAccountIconType(account.iconType)" :icon-id="account.icon" :color="account.color">
                             <f7-badge color="gray" class="right-bottom-icon" v-if="account.hidden">
                                 <f7-icon f7="eye_slash_fill"></f7-icon>
                             </f7-badge>
@@ -104,7 +104,7 @@
 
                     <template #title>
                         <div class="nested-list-item-inner display-flex padding-top-half padding-bottom-half">
-                            <ItemIcon icon-type="account" :icon-id="account.icon" :color="account.color"
+                            <ItemIcon :icon-type="getAccountIconType(account.iconType)" :icon-id="account.icon" :color="account.color"
                                       v-if="account.type === AccountType.MultiSubAccounts.type && hasVisibleSubAccount(account)">
                                 <f7-badge color="gray" class="right-bottom-icon" v-if="account.hidden">
                                     <f7-icon f7="eye_slash_fill"></f7-icon>
@@ -130,7 +130,7 @@
                                               v-show="showHidden || !subAccount.hidden"
                                 >
                                     <template #media>
-                                        <ItemIcon icon-type="account" :icon-id="subAccount.icon" :color="subAccount.color">
+                                        <ItemIcon :icon-type="getAccountIconType(subAccount.iconType)" :icon-id="subAccount.icon" :color="subAccount.color">
                                             <f7-badge color="gray" class="right-bottom-icon" v-if="subAccount.hidden">
                                                 <f7-icon f7="eye_slash_fill"></f7-icon>
                                             </f7-badge>
@@ -164,6 +164,7 @@
         <f7-actions close-by-outside-click close-on-escape :opened="showAccountMoreActionSheet" @actions:closed="showAccountMoreActionSheet = false">
             <f7-actions-group v-if="accountForMoreActionSheet && accountForMoreActionSheet.type === AccountType.SingleAccount.type">
                 <f7-actions-button @click="showReconciliationStatement(accountForMoreActionSheet)">{{ tt('Reconciliation Statement') }}</f7-actions-button>
+                <f7-actions-button @click="updateLastReconciledTime(accountForMoreActionSheet)" v-if="useLastReconciledTime">{{ tt('Mark as Reconciled') }}</f7-actions-button>
             </f7-actions-group>
             <f7-actions-group v-if="accountForMoreActionSheet && accountForMoreActionSheet.type === AccountType.SingleAccount.type">
                 <f7-actions-button @click="moveAllTransactions(accountForMoreActionSheet)">{{ tt('Move All Transactions') }}</f7-actions-button>
@@ -175,6 +176,7 @@
                                   v-show="showHidden || !subAccount.hidden">
                     <f7-actions-label>{{ subAccount.name }}</f7-actions-label>
                     <f7-actions-button @click="showReconciliationStatement(subAccount)">{{ tt('Reconciliation Statement') }}</f7-actions-button>
+                    <f7-actions-button @click="updateLastReconciledTime(subAccount)" v-if="useLastReconciledTime">{{ tt('Mark as Reconciled') }}</f7-actions-button>
                     <f7-actions-button @click="moveAllTransactions(subAccount)">{{ tt('Move All Transactions') }}</f7-actions-button>
                     <f7-actions-button color="red" @click="showPasswordSheetForClearAllTransaction(subAccount)">{{ tt('Clear All Transactions') }}</f7-actions-button>
                 </f7-actions-group>
@@ -235,6 +237,8 @@ import { TextDirection } from '@/core/text.ts';
 import { AccountType, AccountCategory } from '@/core/account.ts';
 import type { Account, AccountShowingIds } from '@/models/account.ts';
 
+import { getCurrentUnixTime } from '@/lib/datetime.ts';
+import { getAccountIconType } from '@/lib/icon.ts';
 import { onSwipeoutDeleted } from '@/lib/ui/mobile.ts';
 
 const props = defineProps<{
@@ -242,7 +246,7 @@ const props = defineProps<{
 }>();
 
 const { tt, getCurrentLanguageTextDirection } = useI18n();
-const { showAlert, showToast, routeBackOnError } = useI18nUIComponents();
+const { showAlert, showConfirm, showToast, routeBackOnError } = useI18nUIComponents();
 
 const {
     loading,
@@ -250,6 +254,7 @@ const {
     displayOrderModified,
     showAccountBalance,
     customAccountCategoryOrder,
+    useLastReconciledTime,
     allCategorizedAccountsMap,
     allAccountCount,
     maxCategoryAccountCount,
@@ -269,6 +274,7 @@ const accountForMoreActionSheet = ref<Account | null>(null);
 const accountToDelete = ref<Account | null>(null);
 const accountToClearTransactions = ref<Account | null>(null);
 const currentPasswordForClearData = ref<string>('');
+const updatingLastReconciledTime = ref<boolean>(false);
 const clearingData = ref<boolean>(false);
 const showAccountMoreActionSheet = ref<boolean>(false);
 const showMoreActionSheet = ref<boolean>(false);
@@ -368,6 +374,38 @@ function showReconciliationStatement(account: Account | null): void {
     props.f7router.navigate('/account/reconciliation_statements?accountId=' + account.id);
     showAccountMoreActionSheet.value = false;
     accountForMoreActionSheet.value = null;
+}
+
+function updateLastReconciledTime(account: Account | null): void {
+    if (!account) {
+        showAlert('An error occurred');
+        return;
+    }
+
+    showConfirm('Are you sure you want to update the last reconciled time of this account to the current time?', () => {
+        updatingLastReconciledTime.value = true;
+        showLoading(() => updatingLastReconciledTime.value);
+
+        accountsStore.updateAccountLastReconciledTime(account.id, getCurrentUnixTime()).then(() => {
+            updatingLastReconciledTime.value = false;
+            hideLoading();
+            showToast('Last reconciled time have been updated');
+
+            if (accountsStore.accountListStateInvalid && !loading.value) {
+                reload();
+            }
+        }).catch(error => {
+            updatingLastReconciledTime.value = false;
+            hideLoading();
+
+            if (!error.processed) {
+                showToast(error.message || error);
+            }
+        });
+
+        showAccountMoreActionSheet.value = false;
+        accountForMoreActionSheet.value = null;
+    });
 }
 
 function moveAllTransactions(account: Account | null): void {

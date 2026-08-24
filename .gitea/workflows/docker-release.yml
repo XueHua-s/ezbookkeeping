@@ -10,11 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: |
             ${{ secrets.DOCKER_REPO }}/mayswind/ezbookkeeping
@@ -24,10 +24,10 @@ jobs:
             type=raw,value=latest
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Set up the environment
         id: setup
@@ -58,6 +58,7 @@ jobs:
             BUILD_PIPELINE=1
             BUILD_UNIXTIME=${{ steps.setup.outputs.build_unix_time }}
             BUILD_DATE=${{ steps.setup.outputs.build_date }}
+            BUILD_NODE_OPTIONS=${{ vars.BUILD_NODE_OPTIONS }}
             CHECK_3RD_API=${{ vars.CHECK_3RD_API }}
             SKIP_TESTS=${{ vars.SKIP_TESTS }}
           tags: ${{ steps.meta.outputs.tags }}

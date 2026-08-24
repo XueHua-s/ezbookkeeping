@@ -8,12 +8,13 @@
             </f7-nav-right>
         </f7-navbar>
 
-        <f7-list form strong inset dividers class="margin-vertical">
+        <f7-list form strong inset dividers class="margin-vertical-half">
             <f7-list-item
-                class="ebk-small-amount"
+                class="amount-filter-amount"
                 link="#" no-chevron
+                :class="amountFontSizeClass"
                 :header="amount1Header"
-                :title="formatAmountToLocalizedNumeralsWithCurrency(amount1)"
+                :title="formatAmountToLocalizedNumeralsWithCurrency(parseBigDecimal(amount1))"
                 @click="showAmount1Sheet = true"
             >
                 <number-pad-sheet :min-value="TRANSACTION_MIN_AMOUNT"
@@ -24,10 +25,11 @@
             </f7-list-item>
 
             <f7-list-item
-                class="ebk-small-amount"
+                class="amount-filter-amount"
                 link="#" no-chevron
+                :class="amountFontSizeClass"
                 :header="amount2Header"
-                :title="formatAmountToLocalizedNumeralsWithCurrency(amount2)"
+                :title="formatAmountToLocalizedNumeralsWithCurrency(parseBigDecimal(amount2))"
                 @click="showAmount2Sheet = true"
                 v-if="amountCount === 2"
             >
@@ -63,6 +65,7 @@ import { useTransactionsStore } from '@/stores/transaction.ts';
 import { AmountFilterType } from '@/core/numeral.ts';
 import { TRANSACTION_MIN_AMOUNT, TRANSACTION_MAX_AMOUNT } from '@/consts/transaction.ts';
 import { isString } from '@/lib/common.ts';
+import { parseBigDecimal } from '@/lib/numeral.ts';
 import logger from '@/lib/logger.ts';
 
 const props = defineProps<{
@@ -82,6 +85,14 @@ const { showToast } = useI18nUIComponents();
 const transactionsStore = useTransactionsStore();
 
 const amountCount = computed<number>(() => getAmountFilterParameterCount(type.value));
+
+const amountFontSizeClass = computed<string>(() => {
+    if (amount1.value >= 10000000000 || amount1.value <= -10000000000 || amount2.value >= 10000000000 || amount2.value <= -10000000000) {
+        return 'ebk-extra-small-amount';
+    } else {
+        return 'ebk-small-amount';
+    }
+});
 
 const amount1Header = computed<string>(() => {
     if (type.value === AmountFilterType.GreaterThan.type
@@ -167,3 +178,9 @@ function confirm(): void {
 
 init();
 </script>
+
+<style>
+.amount-filter-amount {
+    line-height: 46px;
+}
+</style>

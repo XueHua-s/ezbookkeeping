@@ -6,10 +6,11 @@ import { useSettingsStore } from '@/stores/setting.ts';
 import { useAccountsStore } from '@/stores/account.ts';
 import { useOverviewStore } from '@/stores/overview.ts';
 
-import type { TypeAndDisplayName } from '@/core/base.ts';
+import type { TypeAndDisplayName, LocalizedSwitchOption } from '@/core/base.ts';
 import { DateDisplayType } from '@/core/calendar.ts';
 import { WeekDay } from '@/core/datetime.ts';
 import { type LocalizedDigitGroupingType, NumeralSystem, DecimalSeparator, DigitGroupingSymbol } from '@/core/numeral.ts';
+import { TransactionEditScopeType } from '@/core/transaction.ts';
 
 import { type UserBasicInfo, User } from '@/models/user.ts';
 import { type CategorizedAccount, Account} from '@/models/account.ts';
@@ -22,6 +23,7 @@ export function useUserProfilePageBase() {
         tt,
         getDefaultCurrency,
         getDefaultFirstDayOfWeek,
+        getAllEnableDisableOptions,
         getAllWeekDays,
         getAllCalendarDisplayTypes,
         getAllDateDisplayTypes,
@@ -85,7 +87,8 @@ export function useUserProfilePageBase() {
     const allCoordinateDisplayTypes = computed<TypeAndDisplayName[]>(() => getAllCoordinateDisplayTypes());
     const allExpenseAmountColorTypes = computed<TypeAndDisplayName[]>(() => getAllExpenseAmountColors());
     const allIncomeAmountColorTypes = computed<TypeAndDisplayName[]>(() => getAllIncomeAmountColors());
-    const allTransactionEditScopeTypes = computed<TypeAndDisplayName[]>(() => getAllTransactionEditScopeTypes());
+    const allTransactionEditScopeTypes = computed<TypeAndDisplayName[]>(() => getAllTransactionEditScopeTypes(newProfile.value.useLastReconciledTime || (TransactionEditScopeType.valueOf(newProfile.value.transactionEditScope)?.needLastReconciledTime ?? false)));
+    const enableDisableOptions = computed<LocalizedSwitchOption[]>(() => getAllEnableDisableOptions());
 
     const languageTitle = computed<string>(() => {
         const languageInCurrentLanguage = tt('Language');
@@ -114,6 +117,7 @@ export function useUserProfilePageBase() {
             newProfile.value.email === oldProfile.value.email &&
             newProfile.value.nickname === oldProfile.value.nickname &&
             newProfile.value.defaultAccountId === oldProfile.value.defaultAccountId &&
+            newProfile.value.useLastReconciledTime === oldProfile.value.useLastReconciledTime &&
             newProfile.value.transactionEditScope === oldProfile.value.transactionEditScope &&
             newProfile.value.language === oldProfile.value.language &&
             newProfile.value.defaultCurrency === oldProfile.value.defaultCurrency &&
@@ -229,6 +233,7 @@ export function useUserProfilePageBase() {
         allExpenseAmountColorTypes,
         allIncomeAmountColorTypes,
         allTransactionEditScopeTypes,
+        enableDisableOptions,
         languageTitle,
         supportDigitGroupingSymbol,
         inputIsNotChangedProblemMessage,

@@ -14,27 +14,46 @@ export enum TransactionRelatedAccountType {
 
 export class TransactionEditScopeType implements TypeAndName {
     private static readonly allInstances: TransactionEditScopeType[] = [];
+    private static readonly allInstancesWithoutReconciledTime: TransactionEditScopeType[] = [];
+    private static readonly allInstancesByType: Record<number, TransactionEditScopeType> = {};
 
-    public static readonly None = new TransactionEditScopeType(0, 'None');
-    public static readonly All = new TransactionEditScopeType(1, 'All');
-    public static readonly TodayOrLater = new TransactionEditScopeType(2, 'Today or later');
-    public static readonly Recent24HoursOrLater = new TransactionEditScopeType(3, 'Recent 24 hours or later');
-    public static readonly ThisWeekOrLater = new TransactionEditScopeType(4, 'This week or later');
-    public static readonly ThisMonthOrLater = new TransactionEditScopeType(5, 'This month or later');
-    public static readonly ThisYearOrLater = new TransactionEditScopeType(6, 'This year or later');
+    public static readonly None = new TransactionEditScopeType(0, 'None', false);
+    public static readonly All = new TransactionEditScopeType(1, 'All', false);
+    public static readonly TodayOrLater = new TransactionEditScopeType(2, 'Today or later', false);
+    public static readonly Recent24HoursOrLater = new TransactionEditScopeType(3, 'Recent 24 hours or later', false);
+    public static readonly ThisWeekOrLater = new TransactionEditScopeType(4, 'This week or later', false);
+    public static readonly ThisMonthOrLater = new TransactionEditScopeType(5, 'This month or later', false);
+    public static readonly ThisYearOrLater = new TransactionEditScopeType(6, 'This year or later', false);
+    public static readonly LastReconciledTimeOrlater = new TransactionEditScopeType(7, 'Last reconciled time or later', true);
 
     public readonly type: number;
     public readonly name: string;
+    public readonly needLastReconciledTime: boolean;
 
-    private constructor(type: number, name: string) {
+    private constructor(type: number, name: string, needLastReconciledTime: boolean) {
         this.type = type;
         this.name = name;
+        this.needLastReconciledTime = needLastReconciledTime;
 
         TransactionEditScopeType.allInstances.push(this);
+
+        if (!needLastReconciledTime) {
+            TransactionEditScopeType.allInstancesWithoutReconciledTime.push(this);
+        }
+
+        TransactionEditScopeType.allInstancesByType[type] = this;
     }
 
-    public static values(): TransactionEditScopeType[] {
-        return TransactionEditScopeType.allInstances;
+    public static values(useLastReconciledTime: boolean): TransactionEditScopeType[] {
+        if (useLastReconciledTime) {
+            return TransactionEditScopeType.allInstances;
+        } else {
+            return TransactionEditScopeType.allInstancesWithoutReconciledTime;
+        }
+    }
+
+    public static valueOf(type: number): TransactionEditScopeType | undefined {
+        return TransactionEditScopeType.allInstancesByType[type];
     }
 }
 

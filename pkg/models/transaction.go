@@ -2,13 +2,17 @@ package models
 
 import (
 	"fmt"
+	"math/big"
 	"strings"
 	"time"
 
+	"github.com/mayswind/ezbookkeeping/pkg/core"
 	"github.com/mayswind/ezbookkeeping/pkg/errs"
 	"github.com/mayswind/ezbookkeeping/pkg/utils"
 )
 
+const MinimumTransactionAmount = -999999999999999
+const MaximumTransactionAmount = 999999999999999
 const MaximumTagsCountOfTransaction = 10
 const MaximumPicturesCountOfTransaction = 10
 
@@ -147,8 +151,8 @@ type Transaction struct {
 // TransactionWithAccountBalance represents a transaction item with account balance
 type TransactionWithAccountBalance struct {
 	*Transaction
-	AccountOpeningBalance int64
-	AccountClosingBalance int64
+	AccountOpeningBalance *big.Int
+	AccountClosingBalance *big.Int
 }
 
 // TransactionGeoLocationRequest represents all parameters of transaction geographic location info update request
@@ -165,8 +169,8 @@ type TransactionCreateRequest struct {
 	UtcOffset            int16                          `json:"utcOffset" binding:"min=-720,max=840"`
 	SourceAccountId      int64                          `json:"sourceAccountId,string" binding:"required,min=1"`
 	DestinationAccountId int64                          `json:"destinationAccountId,string" binding:"min=0"`
-	SourceAmount         int64                          `json:"sourceAmount" binding:"min=-99999999999,max=99999999999"`
-	DestinationAmount    int64                          `json:"destinationAmount" binding:"min=-99999999999,max=99999999999"`
+	SourceAmount         int64                          `json:"sourceAmount" binding:"validTransactionAmount"`
+	DestinationAmount    int64                          `json:"destinationAmount" binding:"validTransactionAmount"`
 	HideAmount           bool                           `json:"hideAmount"`
 	TagIds               []string                       `json:"tagIds"`
 	PictureIds           []string                       `json:"pictureIds"`
@@ -178,13 +182,14 @@ type TransactionCreateRequest struct {
 // TransactionModifyRequest represents all parameters of transaction modification request
 type TransactionModifyRequest struct {
 	Id                   int64                          `json:"id,string" binding:"required,min=1"`
+	Type                 TransactionType                `json:"type" binding:"required"`
 	CategoryId           int64                          `json:"categoryId,string"`
 	Time                 int64                          `json:"time" binding:"required,min=1"`
 	UtcOffset            int16                          `json:"utcOffset" binding:"min=-720,max=840"`
 	SourceAccountId      int64                          `json:"sourceAccountId,string" binding:"required,min=1"`
 	DestinationAccountId int64                          `json:"destinationAccountId,string" binding:"min=0"`
-	SourceAmount         int64                          `json:"sourceAmount" binding:"min=-99999999999,max=99999999999"`
-	DestinationAmount    int64                          `json:"destinationAmount" binding:"min=-99999999999,max=99999999999"`
+	SourceAmount         int64                          `json:"sourceAmount" binding:"validTransactionAmount"`
+	DestinationAmount    int64                          `json:"destinationAmount" binding:"validTransactionAmount"`
 	HideAmount           bool                           `json:"hideAmount"`
 	TagIds               []string                       `json:"tagIds"`
 	PictureIds           []string                       `json:"pictureIds"`
@@ -210,65 +215,73 @@ type TransactionTagFilter struct {
 
 // TransactionCountRequest represents transaction count request
 type TransactionCountRequest struct {
-	Type         TransactionType `form:"type" binding:"min=0,max=4"`
-	CategoryIds  string          `form:"category_ids"`
-	AccountIds   string          `form:"account_ids"`
-	TagFilter    string          `form:"tag_filter" binding:"validTagFilter"`
-	AmountFilter string          `form:"amount_filter" binding:"validAmountFilter"`
-	Keyword      string          `form:"keyword"`
-	MaxTime      int64           `form:"max_time" binding:"min=0"` // Transaction time sequence id
-	MinTime      int64           `form:"min_time" binding:"min=0"` // Transaction time sequence id
+	Type             TransactionType `form:"type" binding:"min=0,max=4"`
+	CategoryIds      string          `form:"category_ids"`
+	AccountIds       string          `form:"account_ids"`
+	TagFilter        string          `form:"tag_filter" binding:"validTagFilter"`
+	AmountFilter     string          `form:"amount_filter" binding:"validAmountFilter"`
+	Keyword          string          `form:"keyword"`
+	MatchMode        core.MatchMode  `form:"match_mode" binding:"min=0,max=1"`
+	MustHavePictures bool            `form:"must_have_pictures"`
+	MaxTime          int64           `form:"max_time" binding:"min=0"` // Transaction time sequence id
+	MinTime          int64           `form:"min_time" binding:"min=0"` // Transaction time sequence id
 }
 
 // TransactionListByMaxTimeRequest represents all parameters of transaction listing by max time request
 type TransactionListByMaxTimeRequest struct {
-	Type         TransactionType `form:"type" binding:"min=0,max=4"`
-	CategoryIds  string          `form:"category_ids"`
-	AccountIds   string          `form:"account_ids"`
-	TagFilter    string          `form:"tag_filter" binding:"validTagFilter"`
-	AmountFilter string          `form:"amount_filter" binding:"validAmountFilter"`
-	Keyword      string          `form:"keyword"`
-	MaxTime      int64           `form:"max_time" binding:"min=0"` // Transaction time sequence id
-	MinTime      int64           `form:"min_time" binding:"min=0"` // Transaction time sequence id
-	Page         int32           `form:"page" binding:"min=0"`
-	Count        int32           `form:"count" binding:"required,min=1,max=50"`
-	WithCount    bool            `form:"with_count"`
-	WithPictures bool            `form:"with_pictures"`
-	TrimAccount  bool            `form:"trim_account"`
-	TrimCategory bool            `form:"trim_category"`
-	TrimTag      bool            `form:"trim_tag"`
+	Type             TransactionType `form:"type" binding:"min=0,max=4"`
+	CategoryIds      string          `form:"category_ids"`
+	AccountIds       string          `form:"account_ids"`
+	TagFilter        string          `form:"tag_filter" binding:"validTagFilter"`
+	AmountFilter     string          `form:"amount_filter" binding:"validAmountFilter"`
+	Keyword          string          `form:"keyword"`
+	MatchMode        core.MatchMode  `form:"match_mode" binding:"min=0,max=1"`
+	MustHavePictures bool            `form:"must_have_pictures"`
+	MaxTime          int64           `form:"max_time" binding:"min=0"` // Transaction time sequence id
+	MinTime          int64           `form:"min_time" binding:"min=0"` // Transaction time sequence id
+	Page             int32           `form:"page" binding:"min=0"`
+	Count            int32           `form:"count" binding:"required,min=1,max=50"`
+	WithCount        bool            `form:"with_count"`
+	WithPictures     bool            `form:"with_pictures"`
+	TrimAccount      bool            `form:"trim_account"`
+	TrimCategory     bool            `form:"trim_category"`
+	TrimTag          bool            `form:"trim_tag"`
 }
 
 // TransactionListInMonthByPageRequest represents all parameters of transaction listing by month request
 type TransactionListInMonthByPageRequest struct {
-	Year         int32           `form:"year" binding:"required,min=1"`
-	Month        int32           `form:"month" binding:"required,min=1"`
-	Type         TransactionType `form:"type" binding:"min=0,max=4"`
-	CategoryIds  string          `form:"category_ids"`
-	AccountIds   string          `form:"account_ids"`
-	TagFilter    string          `form:"tag_filter" binding:"validTagFilter"`
-	AmountFilter string          `form:"amount_filter" binding:"validAmountFilter"`
-	Keyword      string          `form:"keyword"`
-	WithPictures bool            `form:"with_pictures"`
-	TrimAccount  bool            `form:"trim_account"`
-	TrimCategory bool            `form:"trim_category"`
-	TrimTag      bool            `form:"trim_tag"`
+	Year             int32           `form:"year" binding:"required,min=1"`
+	Month            int32           `form:"month" binding:"required,min=1"`
+	Type             TransactionType `form:"type" binding:"min=0,max=4"`
+	CategoryIds      string          `form:"category_ids"`
+	AccountIds       string          `form:"account_ids"`
+	TagFilter        string          `form:"tag_filter" binding:"validTagFilter"`
+	AmountFilter     string          `form:"amount_filter" binding:"validAmountFilter"`
+	Keyword          string          `form:"keyword"`
+	MatchMode        core.MatchMode  `form:"match_mode" binding:"min=0,max=1"`
+	MustHavePictures bool            `form:"must_have_pictures"`
+	WithPictures     bool            `form:"with_pictures"`
+	TrimAccount      bool            `form:"trim_account"`
+	TrimCategory     bool            `form:"trim_category"`
+	TrimTag          bool            `form:"trim_tag"`
 }
 
 // TransactionAllListRequest represents all parameters of all transaction listing request
 type TransactionAllListRequest struct {
-	Type         TransactionType `form:"type" binding:"min=0,max=4"`
-	CategoryIds  string          `form:"category_ids"`
-	AccountIds   string          `form:"account_ids"`
-	TagFilter    string          `form:"tag_filter" binding:"validTagFilter"`
-	AmountFilter string          `form:"amount_filter" binding:"validAmountFilter"`
-	Keyword      string          `form:"keyword"`
-	StartTime    int64           `form:"start_time" binding:"min=0"`
-	EndTime      int64           `form:"end_time" binding:"min=0"`
-	WithPictures bool            `form:"with_pictures"`
-	TrimAccount  bool            `form:"trim_account"`
-	TrimCategory bool            `form:"trim_category"`
-	TrimTag      bool            `form:"trim_tag"`
+	Type             TransactionType `form:"type" binding:"min=0,max=4"`
+	CategoryIds      string          `form:"category_ids"`
+	AccountIds       string          `form:"account_ids"`
+	TagFilter        string          `form:"tag_filter" binding:"validTagFilter"`
+	AmountFilter     string          `form:"amount_filter" binding:"validAmountFilter"`
+	Keyword          string          `form:"keyword"`
+	MatchMode        core.MatchMode  `form:"match_mode" binding:"min=0,max=1"`
+	MustHavePictures bool            `form:"must_have_pictures"`
+	StartTime        int64           `form:"start_time" binding:"min=0"`
+	EndTime          int64           `form:"end_time" binding:"min=0"`
+	WithPictures     bool            `form:"with_pictures"`
+	TrimAccount      bool            `form:"trim_account"`
+	TrimCategory     bool            `form:"trim_category"`
+	TrimTag          bool            `form:"trim_tag"`
 }
 
 // TransactionReconciliationStatementRequest represents all parameters of transaction reconciliation statement request
@@ -280,19 +293,21 @@ type TransactionReconciliationStatementRequest struct {
 
 // TransactionStatisticRequest represents all parameters of transaction statistic request
 type TransactionStatisticRequest struct {
-	StartTime              int64  `form:"start_time" binding:"min=0"`
-	EndTime                int64  `form:"end_time" binding:"min=0"`
-	TagFilter              string `form:"tag_filter" binding:"validTagFilter"`
-	Keyword                string `form:"keyword"`
-	UseTransactionTimezone bool   `form:"use_transaction_timezone"`
+	StartTime              int64          `form:"start_time" binding:"min=0"`
+	EndTime                int64          `form:"end_time" binding:"min=0"`
+	TagFilter              string         `form:"tag_filter" binding:"validTagFilter"`
+	Keyword                string         `form:"keyword"`
+	MatchMode              core.MatchMode `form:"match_mode" binding:"min=0,max=1"`
+	UseTransactionTimezone bool           `form:"use_transaction_timezone"`
 }
 
 // TransactionStatisticTrendsRequest represents all parameters of transaction statistic trends request
 type TransactionStatisticTrendsRequest struct {
 	YearMonthRangeRequest
-	TagFilter              string `form:"tag_filter" binding:"validTagFilter"`
-	Keyword                string `form:"keyword"`
-	UseTransactionTimezone bool   `form:"use_transaction_timezone"`
+	TagFilter              string         `form:"tag_filter" binding:"validTagFilter"`
+	Keyword                string         `form:"keyword"`
+	MatchMode              core.MatchMode `form:"match_mode" binding:"min=0,max=1"`
+	UseTransactionTimezone bool           `form:"use_transaction_timezone"`
 }
 
 // TransactionStatisticAssetTrendsRequest represents all parameters of transaction statistic asset trends request
@@ -304,6 +319,15 @@ type TransactionStatisticAssetTrendsRequest struct {
 // TransactionAmountsRequest represents all parameters of transaction amounts request
 type TransactionAmountsRequest struct {
 	Query                  string `form:"query"`
+	ExcludeAccountIds      string `form:"exclude_account_ids"`
+	ExcludeCategoryIds     string `form:"exclude_category_ids"`
+	UseTransactionTimezone bool   `form:"use_transaction_timezone"`
+}
+
+// TransactionDailyAmountsRequest represents all parameters of transaction daily amounts request
+type TransactionDailyAmountsRequest struct {
+	StartTime              int64  `form:"start_time" binding:"required,min=1"`
+	EndTime                int64  `form:"end_time" binding:"required,min=1"`
 	ExcludeAccountIds      string `form:"exclude_account_ids"`
 	ExcludeCategoryIds     string `form:"exclude_category_ids"`
 	UseTransactionTimezone bool   `form:"use_transaction_timezone"`
@@ -325,6 +349,36 @@ type TransactionGetRequest struct {
 	TrimTag      bool  `form:"trim_tag"`
 }
 
+// TransactionBatchUpdateCategoryRequest represents all parameters of transaction batch update category request
+type TransactionBatchUpdateCategoryRequest struct {
+	TransactionIds []string `json:"transactionIds" binding:"required"`
+	CategoryId     int64    `json:"categoryId,string" binding:"required"`
+}
+
+// TransactionBatchUpdateAccountRequest represents all parameters of transaction batch update account request
+type TransactionBatchUpdateAccountRequest struct {
+	TransactionIds       []string `json:"transactionIds" binding:"required"`
+	AccountId            int64    `json:"accountId,string" binding:"required"`
+	IsDestinationAccount bool     `json:"isDestinationAccount"`
+}
+
+// TransactionBatchAddTagsRequest represents all parameters of transaction batch add tags request
+type TransactionBatchAddTagsRequest struct {
+	TransactionIds []string `json:"transactionIds" binding:"required"`
+	TagIds         []string `json:"tagIds" binding:"required"`
+}
+
+// TransactionBatchRemoveTagsRequest represents all parameters of transaction batch remove tags request
+type TransactionBatchRemoveTagsRequest struct {
+	TransactionIds []string `json:"transactionIds" binding:"required"`
+	TagIds         []string `json:"tagIds" binding:"required"`
+}
+
+// TransactionBatchClearTagsRequest represents all parameters of transaction batch clear tags request
+type TransactionBatchClearTagsRequest struct {
+	TransactionIds []string `json:"transactionIds" binding:"required"`
+}
+
 // TransactionMoveBetweenAccountsRequest represents all parameters of moving all transactions between accounts request
 type TransactionMoveBetweenAccountsRequest struct {
 	FromAccountId int64 `json:"fromAccountId,string" binding:"required,min=1"`
@@ -334,6 +388,12 @@ type TransactionMoveBetweenAccountsRequest struct {
 // TransactionDeleteRequest represents all parameters of transaction deleting request
 type TransactionDeleteRequest struct {
 	Id int64 `json:"id,string" binding:"required,min=1"`
+}
+
+// TransactionBatchDeleteRequest represents all parameters of transaction batch deleting request
+type TransactionBatchDeleteRequest struct {
+	Ids      []string `json:"ids,string" binding:"required"`
+	Password string   `json:"password" binding:"omitempty,min=6,max=128"`
 }
 
 // YearMonthRangeRequest represents all parameters of a request with year and month range
@@ -362,7 +422,7 @@ type TransactionInfoResponse struct {
 	DestinationAccountId int64                                    `json:"destinationAccountId,string,omitempty"`
 	DestinationAccount   *AccountInfoResponse                     `json:"destinationAccount,omitempty"`
 	SourceAmount         int64                                    `json:"sourceAmount"`
-	DestinationAmount    int64                                    `json:"destinationAmount,omitempty"`
+	DestinationAmount    *int64                                   `json:"destinationAmount,omitempty"`
 	HideAmount           bool                                     `json:"hideAmount"`
 	TagIds               []string                                 `json:"tagIds"`
 	Tags                 []*TransactionTagInfoResponse            `json:"tags,omitempty"`
@@ -393,17 +453,17 @@ type TransactionInfoPageWrapperResponse2 struct {
 // TransactionReconciliationStatementResponseItem represents a transaction reconciliation statement response
 type TransactionReconciliationStatementResponseItem struct {
 	*TransactionInfoResponse
-	AccountOpeningBalance int64 `json:"accountOpeningBalance"`
-	AccountClosingBalance int64 `json:"accountClosingBalance"`
+	AccountOpeningBalance string `json:"accountOpeningBalance"`
+	AccountClosingBalance string `json:"accountClosingBalance"`
 }
 
 // TransactionReconciliationStatementResponse represents the response of all transaction reconciliation statement response
 type TransactionReconciliationStatementResponse struct {
 	Transactions   []*TransactionReconciliationStatementResponseItem `json:"transactions"`
-	TotalInflows   int64                                             `json:"totalInflows"`
-	TotalOutflows  int64                                             `json:"totalOutflows"`
-	OpeningBalance int64                                             `json:"openingBalance"`
-	ClosingBalance int64                                             `json:"closingBalance"`
+	TotalInflows   string                                            `json:"totalInflows"`
+	TotalOutflows  string                                            `json:"totalOutflows"`
+	OpeningBalance string                                            `json:"openingBalance"`
+	ClosingBalance string                                            `json:"closingBalance"`
 }
 
 // TransactionStatisticResponse represents transaction statistic response
@@ -419,7 +479,7 @@ type TransactionStatisticResponseItem struct {
 	AccountId          int64                         `json:"accountId,string"`
 	RelatedAccountId   int64                         `json:"relatedAccountId,string,omitempty"`
 	RelatedAccountType TransactionRelatedAccountType `json:"relatedAccountType,omitempty"`
-	TotalAmount        int64                         `json:"amount"`
+	TotalAmount        string                        `json:"amount"`
 }
 
 // TransactionStatisticTrendsResponseItem represents the data within each statistic interval
@@ -439,9 +499,9 @@ type TransactionStatisticAssetTrendsResponseItem struct {
 
 // TransactionStatisticAssetTrendsResponseDataItem represents an asset trends data item
 type TransactionStatisticAssetTrendsResponseDataItem struct {
-	AccountId             int64 `json:"accountId,string"`
-	AccountOpeningBalance int64 `json:"accountOpeningBalance"`
-	AccountClosingBalance int64 `json:"accountClosingBalance"`
+	AccountId             int64  `json:"accountId,string"`
+	AccountOpeningBalance string `json:"accountOpeningBalance"`
+	AccountClosingBalance string `json:"accountClosingBalance"`
 }
 
 // TransactionAmountsResponseItem represents an item of transaction amounts
@@ -449,6 +509,12 @@ type TransactionAmountsResponseItem struct {
 	StartTime int64                                       `json:"startTime"`
 	EndTime   int64                                       `json:"endTime"`
 	Amounts   []*TransactionAmountsResponseItemAmountInfo `json:"amounts"`
+}
+
+// TransactionDailyAmountsResponseItem represents an item of transaction daily amounts
+type TransactionDailyAmountsResponseItem struct {
+	Date    string                                      `json:"date"`
+	Amounts []*TransactionAmountsResponseItemAmountInfo `json:"amounts"`
 }
 
 // TransactionMonthAmountsResponseItem represents an item of transaction month amounts
@@ -461,8 +527,24 @@ type TransactionMonthAmountsResponseItem struct {
 // TransactionAmountsResponseItemAmountInfo represents amount info for a response item
 type TransactionAmountsResponseItemAmountInfo struct {
 	Currency      string `json:"currency"`
-	IncomeAmount  int64  `json:"incomeAmount"`
-	ExpenseAmount int64  `json:"expenseAmount"`
+	IncomeAmount  string `json:"incomeAmount"`
+	ExpenseAmount string `json:"expenseAmount"`
+}
+
+// TransactionTotalAmount represents an aggregated transaction amount
+type TransactionTotalAmount struct {
+	Type             TransactionDbType
+	CategoryId       int64
+	AccountId        int64
+	RelatedAccountId int64
+	Amount           *big.Int
+}
+
+// TransactionAmountsAndCurrency represents income and expense amounts with currency
+type TransactionAmountsAndCurrency struct {
+	Currency      string
+	IncomeAmount  *big.Int
+	ExpenseAmount *big.Int
 }
 
 // ParseTransactionTagFilter parses transaction tag filter from string
@@ -513,10 +595,6 @@ func ParseTransactionTagFilter(tagFilterStr string) ([]*TransactionTagFilter, er
 
 // IsEditable returns whether this transaction can be edited
 func (t *Transaction) IsEditable(currentUser *User, clientTimezone *time.Location, account *Account, relatedAccount *Account) bool {
-	if currentUser == nil || !currentUser.CanEditTransactionByTransactionTime(t.TransactionTime, clientTimezone) {
-		return false
-	}
-
 	if account == nil || account.Hidden {
 		return false
 	}
@@ -525,6 +603,10 @@ func (t *Transaction) IsEditable(currentUser *User, clientTimezone *time.Locatio
 		if relatedAccount == nil || relatedAccount.Hidden {
 			return false
 		}
+	}
+
+	if currentUser == nil || !currentUser.CanEditTransactionByTransactionTime(t.TransactionTime, clientTimezone, account, relatedAccount) {
+		return false
 	}
 
 	return true
@@ -542,17 +624,17 @@ func (t *Transaction) ToTransactionInfoResponse(tagIds []int64, editable bool) *
 	sourceAmount := t.Amount
 
 	destinationAccountId := int64(0)
-	destinationAmount := int64(0)
+	var destinationAmount *int64
 
 	if t.Type == TRANSACTION_DB_TYPE_TRANSFER_OUT {
 		destinationAccountId = t.RelatedAccountId
-		destinationAmount = t.RelatedAccountAmount
+		destinationAmount = &t.RelatedAccountAmount
 	} else if t.Type == TRANSACTION_DB_TYPE_TRANSFER_IN {
 		sourceAccountId = t.RelatedAccountId
 		sourceAmount = t.RelatedAccountAmount
 
 		destinationAccountId = t.AccountId
-		destinationAmount = t.Amount
+		destinationAmount = &t.Amount
 	}
 
 	geoLocation := &TransactionGeoLocationResponse{}

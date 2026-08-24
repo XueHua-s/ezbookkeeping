@@ -38,6 +38,8 @@ export function useAccountEditPageBase() {
     const account = ref<Account>(Account.createNewAccount(defaultAccountCategory, userStore.currentUserDefaultCurrency, getCurrentUnixTimeForNewAccount()));
     const subAccounts = ref<Account[]>([]);
 
+    const useLastReconciledTime = computed(() => userStore.currentUserUseLastReconciledTime);
+
     const title = computed<string>(() => {
         if (!editAccountId.value) {
             return 'Add Account';
@@ -97,12 +99,12 @@ export function useAccountEditPageBase() {
         return getSameDateTimeWithCurrentTimezone(parseDateTimeFromUnixTimeWithBrowserTimezone(getCurrentUnixTime())).getUnixTime();
     }
 
-    function getDefaultTimezoneOffsetMinutes(account: Account): number {
-        if (!account.balanceTime) {
-            return 0;
+    function getDefaultTimezoneOffsetMinutes(unixTime?: number): number {
+        if (!unixTime) {
+            return getTimezoneOffsetMinutes(getCurrentUnixTime());
         }
 
-        return getTimezoneOffsetMinutes(account.balanceTime);
+        return getTimezoneOffsetMinutes(unixTime);
     }
 
     function getAccountCreditCardStatementDate(statementDate?: number): string | null {
@@ -130,6 +132,23 @@ export function useAccountEditPageBase() {
         }
 
         account.balanceTime = balanceTime - (newUtcOffset - oldUtcOffset) * 60;
+    }
+
+    function updateAccountLastReconciledTime(account: Account, lastReconciledTime: number): void {
+        if (!isDefined(account.lastReconciledTime)) {
+            account.lastReconciledTime = lastReconciledTime;
+            return;
+        }
+
+        const oldUtcOffset = getTimezoneOffsetMinutes(account.lastReconciledTime);
+        const newUtcOffset = getTimezoneOffsetMinutes(lastReconciledTime);
+
+        if (oldUtcOffset === newUtcOffset) {
+            account.lastReconciledTime = lastReconciledTime;
+            return;
+        }
+
+        account.lastReconciledTime = lastReconciledTime - (newUtcOffset - oldUtcOffset) * 60;
     }
 
     function getInputEmptyProblemMessage(account: Account, isSubAccount: boolean): string | null {
@@ -189,6 +208,7 @@ export function useAccountEditPageBase() {
         account,
         subAccounts,
         // computed states
+        useLastReconciledTime,
         title,
         saveButtonTitle,
         inputEmptyProblemMessage,
@@ -202,6 +222,7 @@ export function useAccountEditPageBase() {
         getDefaultTimezoneOffsetMinutes,
         getAccountCreditCardStatementDate,
         updateAccountBalanceTime,
+        updateAccountLastReconciledTime,
         isNewAccount,
         addSubAccount,
         setAccount

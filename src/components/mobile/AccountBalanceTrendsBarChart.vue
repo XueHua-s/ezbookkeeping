@@ -56,9 +56,13 @@ import {
     useAccountBalanceTrendsChartBase
 } from '@/components/base/AccountBalanceTrendsChartBase.ts'
 
+import { useSettingsStore } from '@/stores/setting.ts';
+
 import { itemAndIndex } from '@/core/base.ts';
-import type { ColorStyleValue } from '@/core/color.ts';
-import { DEFAULT_CHART_COLORS } from '@/consts/color.ts';
+import type { BigDecimal } from '@/core/numeral.ts';
+import type { ColorValue, ColorStyleValue } from '@/core/color.ts';
+
+import { BIG_DECIMAL_ZERO } from '@/lib/numeral.ts';
 
 interface MobileAccountBalanceTrendsChartItem extends AccountBalanceTrendsChartItem {
     index: number;
@@ -80,17 +84,21 @@ const props = defineProps<MobileAccountBalanceTrendsChartProps>();
 const { tt, formatAmountToLocalizedNumeralsWithCurrency } = useI18n();
 const { allDataItems } = useAccountBalanceTrendsChartBase(props);
 
+const settingsStore = useSettingsStore();
+
 const virtualDataItems = ref<MobileAccountBalanceTrendsChartVirtualListData>({
     items: [],
     topPosition: 0
 });
 
+const chartColors = computed<ColorValue[]>(() => settingsStore.chartColorList);
+
 const allVirtualListItems = computed<MobileAccountBalanceTrendsChartItem[]>(() => {
     const ret: MobileAccountBalanceTrendsChartItem[] = [];
-    let maxClosingBalance = 0;
+    let maxClosingBalance: BigDecimal = BIG_DECIMAL_ZERO;
 
     for (const [dataItem, index] of itemAndIndex(allDataItems.value)) {
-        if (dataItem.closingBalance > maxClosingBalance) {
+        if (dataItem.closingBalance.greaterThan(maxClosingBalance)) {
             maxClosingBalance = dataItem.closingBalance;
         }
 
@@ -108,7 +116,7 @@ const allVirtualListItems = computed<MobileAccountBalanceTrendsChartItem[]>(() =
             maximumBalance: dataItem.maximumBalance,
             q1Balance: dataItem.q1Balance,
             q3Balance: dataItem.q3Balance,
-            color: `#${DEFAULT_CHART_COLORS[0] as string}`,
+            color: `#${chartColors.value[0] as string}`,
             percent: 0.0
         };
 
@@ -116,8 +124,8 @@ const allVirtualListItems = computed<MobileAccountBalanceTrendsChartItem[]>(() =
     }
 
     for (const item of ret) {
-        if (maxClosingBalance > 0 && item.closingBalance > 0) {
-            item.percent = 100.0 * item.closingBalance / maxClosingBalance;
+        if (maxClosingBalance.isPositive() && item.closingBalance.isPositive()) {
+            item.percent = item.closingBalance.divide(maxClosingBalance).multiply(100).toDoubleNumber();
         } else {
             item.percent = 0.0;
         }

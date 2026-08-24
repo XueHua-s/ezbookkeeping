@@ -953,6 +953,7 @@ func printUserInfo(user *models.User) {
 	fmt.Printf("[Password] %s\n", user.Password)
 	fmt.Printf("[Salt] %s\n", user.Salt)
 	fmt.Printf("[DefaultAccountId] %d\n", user.DefaultAccountId)
+	fmt.Printf("[UseLastReconciledTime] %t\n", user.UseLastReconciledTime)
 	fmt.Printf("[TransactionEditScope] %s (%d)\n", user.TransactionEditScope, user.TransactionEditScope)
 	fmt.Printf("[Language] %s\n", user.Language)
 	fmt.Printf("[DefaultCurrency] %s\n", user.DefaultCurrency)

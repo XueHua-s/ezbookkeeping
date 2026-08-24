@@ -1,0 +1,208 @@
+import { ref, computed } from 'vue';
+
+import { useI18n } from '@/locales/helpers.ts';
+
+import { useSettingsStore } from '@/stores/setting.ts';
+import { useUserStore } from '@/stores/user.ts';
+import { useExplorersStore } from '@/stores/explorer.ts';
+import { useExchangeRatesStore } from '@/stores/exchangeRates.ts';
+
+import { type NameValue, type NameNumeralValue, itemAndIndex } from '@/core/base.ts';
+import type { BigDecimal, NumeralSystem } from '@/core/numeral.ts';
+import { TransactionType } from '@/core/transaction.ts';
+
+import { DISPLAY_HIDDEN_AMOUNT } from '@/consts/numeral.ts';
+import { DEFAULT_PAGE_COUNTS } from '@/consts/page.ts';
+
+import type { TransactionInsightDataItem } from '@/models/transaction.ts';
+import type { InsightsExplorer } from '@/models/explorer.ts';
+
+import {
+    parseBigDecimal
+} from '@/lib/numeral.ts';
+import {
+    getUtcOffsetByUtcOffsetMinutes,
+    getTimezoneOffsetMinutes,
+    parseDateTimeFromUnixTimeWithTimezoneOffset
+} from '@/lib/datetime.ts';
+
+export function useExplorerDataTablePageBase() {
+    const {
+        tt,
+        getCurrentNumeralSystemType,
+        formatDateTimeToLongDateTime,
+        formatAmountToLocalizedNumeralsWithCurrency,
+        formatNumberToLocalizedNumeralsWithoutDigitGrouping,
+        getTablePageOptions
+    } = useI18n();
+
+    const settingsStore = useSettingsStore();
+    const userStore = useUserStore();
+    const explorersStore = useExplorersStore();
+    const exchangeRatesStore = useExchangeRatesStore();
+
+    const currentPage = ref<number>(1);
+
+    const numeralSystem = computed<NumeralSystem>(() => getCurrentNumeralSystemType());
+    const defaultCurrency = computed<string>(() => userStore.currentUserDefaultCurrency);
+
+    const currentExploration = computed<InsightsExplorer>(() => explorersStore.currentExploration);
+
+    const filteredTransactions = computed<TransactionInsightDataItem[]>(() => explorersStore.filteredTransactionsInDataTable);
+
+    const allDataTableQuerySources = computed<NameValue[]>(() => {
+        const sources: NameValue[] = [];
+
+        sources.push({
+            name: tt('All Queries'),
+            value: ''
+        });
+
+        for (const [query, index] of itemAndIndex(currentExploration.value.queries)) {
+            if (query.name) {
+                sources.push({
+                    name: query.name,
+                    value: query.id
+                });
+            } else {
+                sources.push({
+                    name: tt('format.misc.queryIndex', { index: formatNumberToLocalizedNumeralsWithoutDigitGrouping(index + 1) }),
+                    value: query.id
+                });
+            }
+        }
+
+        return sources;
+    });
+
+    const allPageCounts = computed<NameNumeralValue[]>(() => getTablePageOptions(DEFAULT_PAGE_COUNTS, undefined, true, true));
+
+    const skeletonData = computed<number[]>(() => {
+        const data: number[] = [];
+
+        for (let i = 0; i < currentExploration.value.countPerPage; i++) {
+            data.push(i);
+        }
+
+        return data;
+    });
+
+    const totalPageCount = computed<number>(() => {
+        if (!filteredTransactions.value || filteredTransactions.value.length < 1) {
+            return 1;
+        }
+
+        const count = filteredTransactions.value.length;
+        return Math.ceil(count / currentExploration.value.countPerPage);
+    });
+
+    const dataTableHeaders = computed<object[]>(() => {
+        const headers: object[] = [];
+
+        headers.push({ key: 'time', value: 'time', title: tt('Transaction Time'), sortable: true, nowrap: true });
+        headers.push({ key: 'type', value: 'type', title: tt('Type'), sortable: true, nowrap: true });
+        headers.push({ key: 'secondaryCategoryName', value: 'secondaryCategoryName', title: tt('Category'), sortable: true, nowrap: true });
+        headers.push({ key: 'sourceAmount', value: 'sourceAmount', title: tt('Amount'), sortable: true, nowrap: true });
+        headers.push({ key: 'sourceAccountName', value: 'sourceAccountName', title: tt('Account'), sortable: true, nowrap: true });
+
+        if (settingsStore.appSettings.showTagInInsightsExplorerPage) {
+            headers.push({ key: 'tags', value: 'tags', title: tt('Tags'), sortable: true, nowrap: true });
+        }
+
+        headers.push({ key: 'comment', value: 'comment', title: tt('Description'), sortable: true, nowrap: true });
+        headers.push({ key: 'operation', title: tt('Operation'), sortable: false, nowrap: true, align: 'center' });
+        return headers;
+    });
+
+    function formatAmount(amount: BigDecimal, hideAmount: boolean, currencyCode: string, inDefaultCurrency?: boolean): string {
+        if (hideAmount) {
+            return formatAmountToLocalizedNumeralsWithCurrency(DISPLAY_HIDDEN_AMOUNT, currencyCode);
+        }
+
+        if (!inDefaultCurrency || currencyCode === defaultCurrency.value) {
+            return formatAmountToLocalizedNumeralsWithCurrency(amount, currencyCode);
+        } else {
+            const exchangedAmount = exchangeRatesStore.getExchangedAmount(amount, currencyCode, defaultCurrency.value);
+            return exchangedAmount ? formatAmountToLocalizedNumeralsWithCurrency(exchangedAmount.truncate(), defaultCurrency.value) : formatAmountToLocalizedNumeralsWithCurrency(amount, currencyCode);
+        }
+    }
+
+    function getDisplayDateTime(transaction: TransactionInsightDataItem): string {
+        const dateTime = parseDateTimeFromUnixTimeWithTimezoneOffset(transaction.time, transaction.utcOffset);
+        return formatDateTimeToLongDateTime(dateTime);
+    }
+
+    function isSameAsDefaultTimezoneOffsetMinutes(transaction: TransactionInsightDataItem): boolean {
+        return transaction.utcOffset === getTimezoneOffsetMinutes(transaction.time);
+    }
+
+    function getDisplayTimezone(transaction: TransactionInsightDataItem): string {
+        return `UTC${getUtcOffsetByUtcOffsetMinutes(transaction.utcOffset)}`;
+    }
+
+    function getDisplayTimeInDefaultTimezone(transaction: TransactionInsightDataItem): string {
+        const timezoneOffsetMinutes = getTimezoneOffsetMinutes(transaction.time);
+        const dateTime = parseDateTimeFromUnixTimeWithTimezoneOffset(transaction.time, timezoneOffsetMinutes);
+        const utcOffset = numeralSystem.value.replaceWesternArabicDigitsToLocalizedDigits(getUtcOffsetByUtcOffsetMinutes(timezoneOffsetMinutes));
+        return `${formatDateTimeToLongDateTime(dateTime)} (UTC${utcOffset})`;
+    }
+
+    function getDisplayTransactionType(transaction: TransactionInsightDataItem): string {
+        if (transaction.type === TransactionType.ModifyBalance) {
+            return tt('Modify Balance');
+        } else if (transaction.type === TransactionType.Income) {
+            return tt('Income');
+        } else if (transaction.type === TransactionType.Expense) {
+            return tt('Expense');
+        } else if (transaction.type === TransactionType.Transfer) {
+            return tt('Transfer');
+        } else {
+            return tt('Unknown');
+        }
+    }
+
+    function getTransactionTypeColor(transaction: TransactionInsightDataItem): string | undefined {
+        if (transaction.type === TransactionType.ModifyBalance) {
+            return 'secondary';
+        } else if (transaction.type === TransactionType.Income) {
+            return undefined;
+        } else if (transaction.type === TransactionType.Expense) {
+            return undefined;
+        } else if (transaction.type === TransactionType.Transfer) {
+            return 'primary';
+        } else {
+            return 'default';
+        }
+    }
+
+    function getDisplaySourceAmount(transaction: TransactionInsightDataItem, inDefaultCurrency?: boolean): string {
+        return formatAmount(parseBigDecimal(transaction.sourceAmount), transaction.hideAmount, transaction.sourceAccount?.currency ?? defaultCurrency.value, inDefaultCurrency);
+    }
+
+    function getDisplayDestinationAmount(transaction: TransactionInsightDataItem, inDefaultCurrency?: boolean): string {
+        return formatAmount(parseBigDecimal(transaction.destinationAmount), transaction.hideAmount, transaction.destinationAccount?.currency ?? defaultCurrency.value, inDefaultCurrency);
+    }
+
+    return {
+        // states
+        currentPage,
+        // computed states
+        defaultCurrency,
+        currentExploration,
+        filteredTransactions,
+        allDataTableQuerySources,
+        allPageCounts,
+        skeletonData,
+        totalPageCount,
+        dataTableHeaders,
+        // functions
+        getDisplayDateTime,
+        isSameAsDefaultTimezoneOffsetMinutes,
+        getDisplayTimezone,
+        getDisplayTimeInDefaultTimezone,
+        getDisplayTransactionType,
+        getTransactionTypeColor,
+        getDisplaySourceAmount,
+        getDisplayDestinationAmount
+    };
+}

@@ -19,6 +19,7 @@ export class User {
     public firstDayOfWeek: number;
 
     public defaultAccountId: string = EMPTY_USER_BASIC_INFO.defaultAccountId;
+    public useLastReconciledTime: boolean = EMPTY_USER_BASIC_INFO.useLastReconciledTime;
     public transactionEditScope: number = EMPTY_USER_BASIC_INFO.transactionEditScope;
     public fiscalYearStart: number = EMPTY_USER_BASIC_INFO.fiscalYearStart;
     public calendarDisplayType: number = EMPTY_USER_BASIC_INFO.calendarDisplayType;
@@ -48,6 +49,7 @@ export class User {
         this.email = user.email;
         this.nickname = user.nickname;
         this.defaultAccountId = user.defaultAccountId;
+        this.useLastReconciledTime = user.useLastReconciledTime;
         this.transactionEditScope = user.transactionEditScope;
         this.language = user.language;
         this.defaultCurrency = user.defaultCurrency;
@@ -90,6 +92,7 @@ export class User {
             password: this.password,
             oldPassword: currentPassword,
             defaultAccountId: this.defaultAccountId,
+            useLastReconciledTime: this.useLastReconciledTime,
             transactionEditScope: this.transactionEditScope,
             language: this.language,
             defaultCurrency: this.defaultCurrency,
@@ -116,6 +119,7 @@ export class User {
     public static of(userInfo: UserBasicInfo): User {
         const user = new User(userInfo.language, userInfo.defaultCurrency, userInfo.firstDayOfWeek);
         user.defaultAccountId = userInfo.defaultAccountId;
+        user.useLastReconciledTime = userInfo.useLastReconciledTime;
         user.transactionEditScope = userInfo.transactionEditScope;
         user.fiscalYearStart = userInfo.fiscalYearStart;
         user.calendarDisplayType = userInfo.calendarDisplayType;
@@ -149,6 +153,7 @@ export interface UserBasicInfo {
     readonly avatar: string;
     readonly avatarProvider?: string;
     readonly defaultAccountId: string;
+    readonly useLastReconciledTime: boolean;
     readonly transactionEditScope: number;
     readonly language: string;
     readonly defaultCurrency: string;
@@ -205,6 +210,7 @@ export interface UserProfileUpdateRequest {
     readonly password?: string;
     readonly oldPassword?: string;
     readonly defaultAccountId?: string;
+    readonly useLastReconciledTime?: boolean;
     readonly transactionEditScope?: number;
     readonly language?: string;
     readonly defaultCurrency?: string;
@@ -244,6 +250,7 @@ export const EMPTY_USER_BASIC_INFO: UserBasicInfo = {
     avatar: '',
     avatarProvider: undefined,
     defaultAccountId: '',
+    useLastReconciledTime: false,
     transactionEditScope: TransactionEditScopeType.All.type,
     language: '',
     defaultCurrency: '',

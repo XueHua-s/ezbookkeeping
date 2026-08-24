@@ -184,6 +184,15 @@ func FormatUnixTimeToNumericLocalDateTime(unixTime int64, timezone *time.Locatio
 	return localDateTime
 }
 
+// FormatNumericYearMonthDayToLongDate returns a textual representation of the numeric year, month and day formatted by long date format
+func FormatNumericYearMonthDayToLongDate(yearMonthDay int32) string {
+	year := yearMonthDay / 10000
+	month := (yearMonthDay % 10000) / 100
+	day := yearMonthDay % 100
+
+	return fmt.Sprintf("%d-%02d-%02d", year, month, day)
+}
+
 // GetMinUnixTimeWithSameLocalDateTime returns the minimum UnixTime for date with the same local date
 func GetMinUnixTimeWithSameLocalDateTime(unixTime int64, currentUtcOffset int16) int64 {
 	return unixTime + int64(currentUtcOffset)*60 - easternmostTimezoneUtcOffset*60
@@ -313,14 +322,14 @@ func FormatTimezoneOffset(unixTime int64, timezone *time.Location) string {
 	tzMinutesOffset := GetTimezoneOffsetMinutes(unixTime, timezone)
 
 	sign := "+"
+
+	if tzMinutesOffset < 0 {
+		sign = "-"
+		tzMinutesOffset = -tzMinutesOffset
+	}
+
 	hourAbsOffset := tzMinutesOffset / 60
 	minuteAbsOffset := tzMinutesOffset % 60
-
-	if hourAbsOffset < 0 {
-		sign = "-"
-		hourAbsOffset = -hourAbsOffset
-		minuteAbsOffset = -minuteAbsOffset
-	}
 
 	return fmt.Sprintf("%s%02d:%02d", sign, hourAbsOffset, minuteAbsOffset)
 }
@@ -336,14 +345,14 @@ func FormatTimezoneOffsetFromHoursOffset(hoursOffset string) (string, error) {
 	tzMinutesOffset := int16(hoursOffsetValue * 60)
 
 	sign := "+"
+
+	if tzMinutesOffset < 0 {
+		sign = "-"
+		tzMinutesOffset = -tzMinutesOffset
+	}
+
 	hourAbsOffset := tzMinutesOffset / 60
 	minuteAbsOffset := tzMinutesOffset % 60
-
-	if hourAbsOffset < 0 {
-		sign = "-"
-		hourAbsOffset = -hourAbsOffset
-		minuteAbsOffset = -minuteAbsOffset
-	}
 
 	return fmt.Sprintf("%s%02d:%02d", sign, hourAbsOffset, minuteAbsOffset), nil
 }

@@ -1,41 +1,50 @@
 <template>
-    <v-chart autoresize :class="finalClass" :style="finalStyle" :option="chartOptions" />
+    <v-chart autoresize :class="finalClass" :style="finalStyle"
+             :option="chartOptions" :update-options="{ notMerge: true }"
+             @click="clickItem" />
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useTheme } from 'vuetify';
+import type { ECElementEvent } from 'echarts/core';
 import type { CallbackDataParams } from 'echarts/types/dist/shared';
 
 import { useI18n } from '@/locales/helpers.ts';
 
 import { itemAndIndex } from '@/core/base.ts';
 import { TextDirection } from '@/core/text.ts';
+import type { BigDecimal } from '@/core/numeral.ts';
 import { ThemeType } from '@/core/theme.ts';
+import { type AxisChartSourceDataItem, ChartValueType } from '@/core/chart.ts';
 
-import { isArray, isNumber } from '@/lib/common.ts';
+import { isArray } from '@/lib/common.ts';
+import { BIG_DECIMAL_ZERO, BIG_DECIMAL_POSITIVE_INFINITY, parseBigDecimal } from '@/lib/numeral.ts';
 
-interface HeapMapData {
+interface HeatMapData {
     allSeriesNames: string[];
-    data: [number, number, number][];
-    minValue: number;
-    maxValue: number;
+    allOriginalDataMap: Record<string, BigDecimal>;
+    data: [number, number, number][]; // third value only used for echarts rendering, the actual value is in allOriginalDataMap
+    minValue: BigDecimal;
+    maxValue: BigDecimal;
 }
 
 const props = defineProps<{
     class?: string;
     skeleton?: boolean;
     showValue?: boolean;
+    enableClickItem?: boolean;
+    categoryTypeName: string;
     allCategoryNames: string[];
-    items: Record<string, unknown>[];
-    nameField: string;
-    valuesField: string;
-    hiddenField?: string;
-    translateName?: boolean;
+    items: AxisChartSourceDataItem[];
+    valueType: ChartValueType;
     valueTypeName: string;
-    amountValue?: boolean;
-    percentValue?: boolean;
+    translateName?: boolean;
     defaultCurrency?: string;
+}>();
+
+const emit = defineEmits<{
+    (e: 'click', categoryIndex: number, seriesIndex: number): void;
 }>();
 
 const theme = useTheme();
@@ -43,9 +52,9 @@ const theme = useTheme();
 const {
     tt,
     getCurrentLanguageTextDirection,
-    formatAmountToLocalizedNumeralsWithCurrency,
-    formatNumberToLocalizedNumerals,
-    formatPercentToLocalizedNumerals
+    formatAmountToWesternArabicNumeralsWithoutDigitGrouping,
+    formatBigDecimalToWesternArabicNumeralsWithoutDigitGrouping,
+    formatChartValueToLocalizedNumerals
 } = useI18n();
 
 const textDirection = computed<TextDirection>(() => getCurrentLanguageTextDirection());
@@ -60,7 +69,7 @@ const finalClass = computed<string>(() => {
     if (props.class) {
         finalClass += ` ${props.class}`;
     } else {
-        finalClass += ' heapmap-chart-container';
+        finalClass += ' heatmap-chart-container';
     }
 
     return finalClass;
@@ -75,42 +84,43 @@ const finalStyle = computed<Record<string, string>>(() => {
     return style;
 });
 
-const heatMapData = computed<HeapMapData>(() => {
+const heatMapData = computed<HeatMapData>(() => {
     const allData: [number, number, number][] = [];
+    const allOriginalDataMap: Record<string, BigDecimal> = {};
     const allSeriesNames: string[] = [];
-    let minValue: number = Number.POSITIVE_INFINITY;
-    let maxValue: number = 0;
+    let minValue: BigDecimal = BIG_DECIMAL_POSITIVE_INFINITY;
+    let maxValue: BigDecimal = BIG_DECIMAL_ZERO;
 
     for (const [item, seriesIndex] of itemAndIndex(props.items)) {
-        if (props.hiddenField && item[props.hiddenField]) {
+        if (item.hidden) {
             continue;
         }
 
-        if (!isArray(item[props.valuesField])) {
+        if (!isArray(item.values)) {
             continue;
         }
 
-        allSeriesNames.push(getItemName(item[props.nameField] as string));
+        allSeriesNames.push(props.translateName ? tt(item.name) : item.name);
 
-        const allAmounts: number[] = item[props.valuesField] as number[];
-
-        for (const [amount, categoryIndex] of itemAndIndex(allAmounts)) {
-            if (amount > maxValue) {
+        for (const [amount, categoryIndex] of itemAndIndex(item.values)) {
+            if (amount.greaterThan(maxValue)) {
                 maxValue = amount;
             }
 
-            if (amount < minValue) {
+            if (amount.lessThan(minValue)) {
                 minValue = amount;
             }
 
-            allData.push([categoryIndex, seriesIndex, amount]);
+            allOriginalDataMap[`${categoryIndex}-${seriesIndex}`] = amount;
+            allData.push([categoryIndex, seriesIndex, amount.toDoubleNumber()]);
         }
     }
 
-    const ret: HeapMapData = {
+    const ret: HeatMapData = {
         allSeriesNames: allSeriesNames,
+        allOriginalDataMap: allOriginalDataMap,
         data: allData,
-        minValue: minValue === Number.POSITIVE_INFINITY ? 0 : minValue,
+        minValue: minValue.isPositiveInfinity() ? BIG_DECIMAL_ZERO : minValue,
         maxValue: maxValue
     };
 
@@ -118,7 +128,7 @@ const heatMapData = computed<HeapMapData>(() => {
 });
 
 const yAxisWidth = computed<number>(() => {
-    let width: number = 90;
+    let width: number = 60;
 
     if (!heatMapData.value || !heatMapData.value.allSeriesNames) {
         return width;
@@ -162,11 +172,12 @@ const chartOptions = computed<object>(() => {
 
                 const dataItem = params.data as [number, number, number];
                 const name = props.valueTypeName;
-                const value = dataItem && isNumber(dataItem[2]) ? getDisplayValue(dataItem[2]) : '';
+                const displayValue: string = formatDataItemDisplayValue(dataItem);
 
-                return `<div><span class="chart-pointer" style="background-color: ${params.color}"></span>`
+                return `<div class="d-inline-flex">${params.name}</div><br/>`
+                    + `<div><span class="chart-pointer" style="background-color: ${params.color}"></span>`
                     + `<span>${name}</span>`
-                    + `<span class="ms-5">${value}</span>`
+                    + `<span class="ms-5">${displayValue}</span>`
                     + '</div>';
             }
         },
@@ -177,18 +188,29 @@ const chartOptions = computed<object>(() => {
                 top: 0,
                 left: 'center',
                 itemHeight: 320,
-                min: heatMapData.value.minValue,
-                max: heatMapData.value.maxValue,
+                min: heatMapData.value.minValue.toDoubleNumber(),
+                max: heatMapData.value.maxValue.toDoubleNumber(),
                 calculable: true,
                 inRange: {
-                    color: isDarkMode.value ? [ '#060504', '#c67e48' ] : [ '#faf8f4', '#c67e48' ]
+                    color: isDarkMode.value ? [ '#1a1a1a', '#c67e48' ] : [ '#faf8f4', '#c67e48' ]
                 },
-                formatter: (value: string) => {
+                textStyle: {
+                    color: isDarkMode.value ? '#888' : '#666'
+                },
+                formatter: (value: number) => {
                     if (!props.showValue) {
                         return '';
                     }
 
-                    return getDisplayValue(parseInt(value));
+                    let actualValue: BigDecimal = parseBigDecimal(value);
+
+                    if (value === heatMapData.value.minValue.toDoubleNumber()) {
+                        actualValue = heatMapData.value.minValue;
+                    } else if (value === heatMapData.value.maxValue.toDoubleNumber()) {
+                        actualValue = heatMapData.value.maxValue;
+                    }
+
+                    return formatChartValueToLocalizedNumerals(actualValue, props.valueType, props.defaultCurrency);
                 }
             }
         ],
@@ -231,14 +253,13 @@ const chartOptions = computed<object>(() => {
                         }
 
                         const data: [number, number, number] = params.data as [number, number, number];
-                        const value: number = data && isNumber(data[2]) ? data[2] : 0;
-                        return getDisplayValue(value);
+                        return formatDataItemDisplayValue(data);
                     }
                 },
                 emphasis: {
                     itemStyle: {
-                        shadowBlur: 10,
-                        shadowColor: 'rgba(0, 0, 0, 0.5)'
+                        shadowBlur: 6,
+                        shadowColor: isDarkMode.value ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)'
                     }
                 }
             }
@@ -246,33 +267,75 @@ const chartOptions = computed<object>(() => {
     };
 });
 
-function getItemName(name: string): string {
-    return props.translateName ? tt(name) : name;
+function formatDataItemDisplayValue(dataItem: [number, number, number]): string {
+    const categoryIndex = dataItem[0];
+    const seriesIndex = dataItem[1];
+    const value: BigDecimal | undefined = heatMapData.value.allOriginalDataMap[`${categoryIndex}-${seriesIndex}`];
+    return value ? formatChartValueToLocalizedNumerals(value, props.valueType, props.defaultCurrency) : '0';
 }
 
-function getDisplayValue(value: number): string {
-    if (props.percentValue) {
-        return formatPercentToLocalizedNumerals(value, 2, '<0.01');
+function clickItem(e: ECElementEvent): void {
+    if (!props.enableClickItem || e.componentType !== 'series') {
+        return;
     }
 
-    if (props.amountValue) {
-        return formatAmountToLocalizedNumeralsWithCurrency(value, props.defaultCurrency);
+    const dataItem = e.data as [number, number, number];
+
+    if (!dataItem) {
+        return;
     }
 
-    return formatNumberToLocalizedNumerals(value, 2);
+    const categoryIndex = dataItem[0];
+    const seriesIndex = dataItem[1];
+    emit('click', categoryIndex, seriesIndex);
 }
+
+function exportData(): { headers: string[], data: string[][] } {
+    const headers: string[] = [];
+    const data: string[][] = [];
+
+    headers.push(props.categoryTypeName);
+
+    for (const categoryName of props.allCategoryNames) {
+        headers.push(categoryName);
+    }
+
+    for (const [seriesName, seriesIndex] of itemAndIndex(heatMapData.value.allSeriesNames)) {
+        const row: string[] = [];
+        row.push(seriesName);
+        for (let categoryIndex = 0; categoryIndex < props.allCategoryNames.length; categoryIndex++) {
+            const value: BigDecimal = heatMapData.value.allOriginalDataMap[`${categoryIndex}-${seriesIndex}`] ?? BIG_DECIMAL_ZERO;
+
+            if (props.valueType === ChartValueType.Amount) {
+                row.push(formatAmountToWesternArabicNumeralsWithoutDigitGrouping(value, props.defaultCurrency));
+            } else {
+                row.push(formatBigDecimalToWesternArabicNumeralsWithoutDigitGrouping(value));
+            }
+        }
+        data.push(row);
+    }
+
+    return {
+        headers: headers,
+        data: data
+    };
+}
+
+defineExpose({
+    exportData
+});
 </script>
 
 <style scoped>
-.heapmap-chart-container {
+.heatmap-chart-container {
     width: 100%;
     height: 560px;
     margin-top: 10px;
 }
 
 @media (min-width: 600px) {
-    .heapmap-chart-container {
-        height: 630px;
+    .heatmap-chart-container {
+        height: 650px;
     }
 }
 </style>

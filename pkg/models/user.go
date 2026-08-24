@@ -13,14 +13,15 @@ type TransactionEditScope byte
 
 // Editable Transaction Ranges
 const (
-	TRANSACTION_EDIT_SCOPE_NONE                TransactionEditScope = 0
-	TRANSACTION_EDIT_SCOPE_ALL                 TransactionEditScope = 1
-	TRANSACTION_EDIT_SCOPE_TODAY_OR_LATER      TransactionEditScope = 2
-	TRANSACTION_EDIT_SCOPE_LAST_24H_OR_LATER   TransactionEditScope = 3
-	TRANSACTION_EDIT_SCOPE_THIS_WEEK_OR_LATER  TransactionEditScope = 4
-	TRANSACTION_EDIT_SCOPE_THIS_MONTH_OR_LATER TransactionEditScope = 5
-	TRANSACTION_EDIT_SCOPE_THIS_YEAR_OR_LATER  TransactionEditScope = 6
-	TRANSACTION_EDIT_SCOPE_INVALID             TransactionEditScope = 255
+	TRANSACTION_EDIT_SCOPE_NONE                          TransactionEditScope = 0
+	TRANSACTION_EDIT_SCOPE_ALL                           TransactionEditScope = 1
+	TRANSACTION_EDIT_SCOPE_TODAY_OR_LATER                TransactionEditScope = 2
+	TRANSACTION_EDIT_SCOPE_LAST_24H_OR_LATER             TransactionEditScope = 3
+	TRANSACTION_EDIT_SCOPE_THIS_WEEK_OR_LATER            TransactionEditScope = 4
+	TRANSACTION_EDIT_SCOPE_THIS_MONTH_OR_LATER           TransactionEditScope = 5
+	TRANSACTION_EDIT_SCOPE_THIS_YEAR_OR_LATER            TransactionEditScope = 6
+	TRANSACTION_EDIT_SCOPE_LAST_RECONCILED_TIME_OR_LATER TransactionEditScope = 7
+	TRANSACTION_EDIT_SCOPE_INVALID                       TransactionEditScope = 255
 )
 
 // String returns a textual representation of the editable transaction ranges enum
@@ -40,6 +41,8 @@ func (s TransactionEditScope) String() string {
 		return "ThisMonthOrLater"
 	case TRANSACTION_EDIT_SCOPE_THIS_YEAR_OR_LATER:
 		return "ThisYearOrLater"
+	case TRANSACTION_EDIT_SCOPE_LAST_RECONCILED_TIME_OR_LATER:
+		return "LastReconciledTimeOrLater"
 	case TRANSACTION_EDIT_SCOPE_INVALID:
 		return "Invalid"
 	default:
@@ -90,6 +93,7 @@ type User struct {
 	Salt                  string `xorm:"VARCHAR(10) NOT NULL"`
 	CustomAvatarType      string `xorm:"VARCHAR(10)"`
 	DefaultAccountId      int64
+	UseLastReconciledTime bool
 	TransactionEditScope  TransactionEditScope       `xorm:"TINYINT NOT NULL"`
 	Language              string                     `xorm:"VARCHAR(10)"`
 	DefaultCurrency       string                     `xorm:"VARCHAR(3) NOT NULL"`
@@ -128,6 +132,7 @@ type UserBasicInfo struct {
 	AvatarUrl             string                     `json:"avatar"`
 	AvatarProvider        string                     `json:"avatarProvider,omitempty"`
 	DefaultAccountId      int64                      `json:"defaultAccountId,string"`
+	UseLastReconciledTime bool                       `json:"useLastReconciledTime"`
 	TransactionEditScope  TransactionEditScope       `json:"transactionEditScope"`
 	Language              string                     `json:"language"`
 	DefaultCurrency       string                     `json:"defaultCurrency"`
@@ -194,7 +199,8 @@ type UserProfileUpdateRequest struct {
 	Password              string                      `json:"password" binding:"omitempty,min=6,max=128"`
 	OldPassword           string                      `json:"oldPassword" binding:"omitempty,min=6,max=128"`
 	DefaultAccountId      int64                       `json:"defaultAccountId,string" binding:"omitempty,min=1"`
-	TransactionEditScope  *TransactionEditScope       `json:"transactionEditScope" binding:"omitempty,min=0,max=6"`
+	UseLastReconciledTime *bool                       `json:"useLastReconciledTime" binding:"omitempty"`
+	TransactionEditScope  *TransactionEditScope       `json:"transactionEditScope" binding:"omitempty,min=0,max=7"`
 	Language              string                      `json:"language" binding:"omitempty,min=2,max=16"`
 	DefaultCurrency       string                      `json:"defaultCurrency" binding:"omitempty,len=3,validCurrency"`
 	FirstDayOfWeek        *core.WeekDay               `json:"firstDayOfWeek" binding:"omitempty,min=0,max=6"`
@@ -230,7 +236,7 @@ type UserProfileResponse struct {
 }
 
 // CanEditTransactionByTransactionTime returns whether this user can edit transaction with specified transaction time
-func (u *User) CanEditTransactionByTransactionTime(transactionTime int64, clientTimezone *time.Location) bool {
+func (u *User) CanEditTransactionByTransactionTime(transactionTime int64, clientTimezone *time.Location, account *Account, destinationAccount *Account) bool {
 	if u.TransactionEditScope == TRANSACTION_EDIT_SCOPE_NONE {
 		return false
 	} else if u.TransactionEditScope == TRANSACTION_EDIT_SCOPE_ALL {
@@ -242,14 +248,14 @@ func (u *User) CanEditTransactionByTransactionTime(transactionTime int64, client
 	transactionUnixTime := utils.GetUnixTimeFromTransactionTime(transactionTime)
 
 	if u.TransactionEditScope == TRANSACTION_EDIT_SCOPE_LAST_24H_OR_LATER {
-		return transactionUnixTime >= now.Add(-24*time.Hour).Unix()
+		return transactionUnixTime > now.Add(-24*time.Hour).Unix()
 	}
 
 	clientNow := now.In(clientTimezone)
 	clientTodayStartTime := utils.GetStartOfDay(clientNow)
 
 	if u.TransactionEditScope == TRANSACTION_EDIT_SCOPE_TODAY_OR_LATER {
-		return transactionUnixTime >= clientTodayStartTime.Unix()
+		return transactionUnixTime > clientTodayStartTime.Unix()
 	} else if u.TransactionEditScope == TRANSACTION_EDIT_SCOPE_THIS_WEEK_OR_LATER {
 		dayOfWeek := int(now.Weekday()) - int(u.FirstDayOfWeek)
 
@@ -258,13 +264,29 @@ func (u *User) CanEditTransactionByTransactionTime(transactionTime int64, client
 		}
 
 		clientWeekStartTime := clientTodayStartTime.AddDate(0, 0, -dayOfWeek)
-		return transactionUnixTime >= clientWeekStartTime.Unix()
+		return transactionUnixTime > clientWeekStartTime.Unix()
 	} else if u.TransactionEditScope == TRANSACTION_EDIT_SCOPE_THIS_MONTH_OR_LATER {
 		clientMonthStartTime := clientTodayStartTime.AddDate(0, 0, -(now.Day() - 1))
-		return transactionUnixTime >= clientMonthStartTime.Unix()
+		return transactionUnixTime > clientMonthStartTime.Unix()
 	} else if u.TransactionEditScope == TRANSACTION_EDIT_SCOPE_THIS_YEAR_OR_LATER {
 		clientYearStartTime := clientTodayStartTime.AddDate(0, 0, -(now.YearDay() - 1))
-		return transactionUnixTime >= clientYearStartTime.Unix()
+		return transactionUnixTime > clientYearStartTime.Unix()
+	} else if u.TransactionEditScope == TRANSACTION_EDIT_SCOPE_LAST_RECONCILED_TIME_OR_LATER && u.UseLastReconciledTime {
+		minAccountLastReconciledTime := int64(0)
+
+		if account != nil {
+			minAccountLastReconciledTime = account.GetLastReconciledTime()
+		}
+
+		if destinationAccount != nil {
+			destinationAccountLastReconciledTime := destinationAccount.GetLastReconciledTime()
+
+			if destinationAccountLastReconciledTime > minAccountLastReconciledTime {
+				minAccountLastReconciledTime = destinationAccountLastReconciledTime
+			}
+		}
+
+		return transactionUnixTime > minAccountLastReconciledTime
 	}
 
 	return false
@@ -285,6 +307,7 @@ func (u *User) ToUserBasicInfo(avatarProvider core.UserAvatarProviderType, avata
 		AvatarUrl:             avatarUrl,
 		AvatarProvider:        string(avatarProvider),
 		DefaultAccountId:      u.DefaultAccountId,
+		UseLastReconciledTime: u.UseLastReconciledTime,
 		TransactionEditScope:  u.TransactionEditScope,
 		Language:              u.Language,
 		DefaultCurrency:       u.DefaultCurrency,

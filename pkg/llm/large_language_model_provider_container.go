@@ -16,6 +16,7 @@ import (
 
 // LargeLanguageModelProviderContainer contains the current large language model provider
 type LargeLanguageModelProviderContainer struct {
+	textRecognitionProvider         provider.LargeLanguageModelProvider
 	receiptImageRecognitionProvider provider.LargeLanguageModelProvider
 	aiAssistantProvider             provider.LargeLanguageModelProvider
 }
@@ -32,6 +33,11 @@ var Container = &LargeLanguageModelProviderContainer{}
 // InitializeLargeLanguageModelProvider initializes the current large language model provider according to the config
 func InitializeLargeLanguageModelProvider(config *settings.Config) error {
 	var err error
+	Container.textRecognitionProvider, err = initializeLargeLanguageModelProvider(config.TextRecognitionLLMConfig, config.EnableDebugLog)
+	if err != nil {
+		return err
+	}
+
 	Container.receiptImageRecognitionProvider, err = initializeLargeLanguageModelProviderWithFallback(
 		"receipt image recognition",
 		config.ReceiptImageRecognitionLLMConfig,
@@ -87,6 +93,8 @@ func initializeLargeLanguageModelProvider(llmConfig *settings.LLMConfig, enableR
 		return openai.NewOpenAILargeLanguageModelProvider(llmConfig, enableResponseLog), nil
 	} else if llmConfig.LLMProvider == settings.OpenAICompatibleLLMProvider {
 		return openai.NewOpenAICompatibleLargeLanguageModelProvider(llmConfig, enableResponseLog), nil
+	} else if llmConfig.LLMProvider == settings.OpenAIResponsesCompatibleLLMProvider {
+		return openai.NewOpenAIResponsesCompatibleLargeLanguageModelProvider(llmConfig, enableResponseLog), nil
 	} else if llmConfig.LLMProvider == settings.AnthropicLLMProvider {
 		return anthropic.NewAnthropicLargeLanguageModelProvider(llmConfig, enableResponseLog), nil
 	} else if llmConfig.LLMProvider == settings.AnthropicCompatibleLLMProvider {
@@ -102,6 +110,15 @@ func initializeLargeLanguageModelProvider(llmConfig *settings.LLMConfig, enableR
 	}
 
 	return nil, errs.ErrInvalidLLMProvider
+}
+
+// GetJsonResponseByTextRecognitionModel returns the json response from the transaction text recognition model
+func (l *LargeLanguageModelProviderContainer) GetJsonResponseByTextRecognitionModel(c core.Context, uid int64, request *data.LargeLanguageModelRequest) (*data.LargeLanguageModelTextualResponse, error) {
+	if l.textRecognitionProvider == nil {
+		return nil, errs.ErrInvalidLLMProvider
+	}
+
+	return l.textRecognitionProvider.GetJsonResponse(c, uid, request)
 }
 
 // GetJsonResponseByReceiptImageRecognitionModel returns the json response from the current large language model provider by receipt image recognition model

@@ -1,5 +1,6 @@
 <template>
-    <v-chart autoresize class="account-category-sankey-chart-container" :class="{ 'transition-in': skeleton }" :option="chartOptions"
+    <v-chart autoresize class="account-category-sankey-chart-container" :class="{ 'transition-in': skeleton }"
+             :option="chartOptions" :update-options="{ notMerge: true }"
              @click="clickItem" />
 </template>
 
@@ -21,9 +22,11 @@ import {
 } from '@/models/transaction.ts';
 
 import { values } from '@/core/base.ts';
+import type { BigDecimal } from '@/core/numeral.ts';
 import { ThemeType } from '@/core/theme.ts';
 
-import { isNumber } from '@/lib/common.ts';
+import { isString, isNumber } from '@/lib/common.ts';
+import { BIG_DECIMAL_ZERO } from '@/lib/numeral.ts';
 import { getExpenseAndIncomeAmountColor } from '@/lib/ui/common.ts';
 
 enum SankeyChartDepth {
@@ -52,8 +55,9 @@ interface SankeyChartNodeItem {
     itemId: string;
     name: string;
     displayName: string;
-    totalAmount: number;
-    accountNetCashFlow?: number;
+    value: number; // only used for echarts rendering, the actual value is displayValue
+    displayValue: string;
+    displayAccountNetCashFlow?: string;
     percent?: number;
     depth: number;
     itemStyle?: {
@@ -71,7 +75,8 @@ interface SankeyChartLinkItem {
     targetItemId: string;
     target: string;
     targetDisplayName: string;
-    value: number;
+    value: number; // only used for echarts rendering, the actual value is displayValue
+    displayValue: string;
 }
 
 const props = defineProps<{
@@ -133,7 +138,7 @@ const sankeyData = computed<SankeyChartData>(() => {
             continue;
         }
 
-        if (item.totalAmount === 0 && item.outflows.length === 0) {
+        if (item.value.isZero() && item.outflows.length === 0) {
             continue;
         }
 
@@ -143,7 +148,8 @@ const sankeyData = computed<SankeyChartData>(() => {
             itemId: item.id,
             name: `${item.type}:${item.id}`,
             displayName: item.name,
-            totalAmount: item.totalAmount,
+            value: item.value.toDoubleNumber(),
+            displayValue: formatAmountToLocalizedNumeralsWithCurrency(item.value, props.defaultCurrency),
             percent: item.percent,
             depth: depth
         };
@@ -156,12 +162,18 @@ const sankeyData = computed<SankeyChartData>(() => {
         }
 
         if (nodeItem.dateItemType === TransactionCategoricalOverviewAnalysisDataItemType.ExpenseByAccount) {
+            let accountNetCashFlow: BigDecimal = BIG_DECIMAL_ZERO;
+
             for (const outflowItem of item.outflows) {
                 if (outflowItem.relatedItem.type !== TransactionCategoricalOverviewAnalysisDataItemType.NetCashFlow) {
                     continue;
                 }
 
-                nodeItem.accountNetCashFlow = (nodeItem.accountNetCashFlow ?? 0) + outflowItem.amount;
+                accountNetCashFlow = accountNetCashFlow.add(outflowItem.amount);
+            }
+
+            if (!accountNetCashFlow.isZero()) {
+                nodeItem.displayAccountNetCashFlow = formatAmountToLocalizedNumeralsWithCurrency(accountNetCashFlow, props.defaultCurrency);
             }
         }
 
@@ -183,12 +195,12 @@ const sankeyData = computed<SankeyChartData>(() => {
                 if (!combinedOutflow) {
                     combinedOutflow = {
                         relatedItem: outflowItem.relatedItem,
-                        amount: 0
+                        amount: BIG_DECIMAL_ZERO
                     };
                     combinedOutflows[key] = combinedOutflow;
                 }
 
-                combinedOutflow.amount += outflowItem.amount;
+                combinedOutflow.amount = combinedOutflow.amount.add(outflowItem.amount);
             }
         }
 
@@ -209,7 +221,8 @@ const sankeyData = computed<SankeyChartData>(() => {
                 targetItemId: relatedItem.id,
                 target: `${relatedItem.type}:${relatedItem.id}`,
                 targetDisplayName: relatedItem.name,
-                value: outflowItem.amount
+                value: outflowItem.amount.toDoubleNumber(),
+                displayValue: formatAmountToLocalizedNumeralsWithCurrency(outflowItem.amount, props.defaultCurrency)
             };
 
             links.push(linkItem);
@@ -238,8 +251,7 @@ const chartOptions = computed<object>(() => {
             formatter: (params: CallbackDataParams) => {
                 if (params.dataType === 'node') {
                     const dataItem = params.data as SankeyChartNodeItem;
-                    const value = dataItem.totalAmount;
-                    const displayValue = formatAmountToLocalizedNumeralsWithCurrency(value, props.defaultCurrency);
+                    const displayValue = dataItem.displayValue;
                     let displayTypeName = '';
 
                     if (dataItem.dateItemType === TransactionCategoricalOverviewAnalysisDataItemType.IncomeByPrimaryCategory) {
@@ -273,16 +285,15 @@ const chartOptions = computed<object>(() => {
 
                     tooltip += `<span class="ms-5" style="float: inline-end">${displayValue}</span></div>`;
 
-                    if (isNumber(dataItem.accountNetCashFlow) && dataItem.accountNetCashFlow !== 0) {
-                        const displayAccountNetCashFlow = formatAmountToLocalizedNumeralsWithCurrency(dataItem.accountNetCashFlow, props.defaultCurrency);
+                    if (isString(dataItem.displayAccountNetCashFlow) && dataItem.displayAccountNetCashFlow) {
+                        const displayAccountNetCashFlow = dataItem.displayAccountNetCashFlow;
                         tooltip += `<div class="mt-1"><span>${tt('Net Cash Flow')}</span><span class="ms-5" style="float: inline-end">${displayAccountNetCashFlow}</span></div>`;
                     }
 
                     return tooltip;
                 } else if (params.dataType === 'edge') {
                     const dataItem = params.data as SankeyChartLinkItem;
-                    const value = isNumber(params.value) ? params.value as number : 0;
-                    const displayValue = formatAmountToLocalizedNumeralsWithCurrency(value, props.defaultCurrency);
+                    const displayValue = dataItem.displayValue;
                     return `<div><span>${dataItem.sourceDisplayName} → ${dataItem.targetDisplayName}</span><span class="ms-5" style="float: inline-end">${displayValue}</span></div>`;
                 } else {
                     return '';
@@ -423,7 +434,7 @@ function clickItem(e: ECElementEvent): void {
 
 @media (min-width: 600px) {
     .account-category-sankey-chart-container {
-        height: 660px;
+        height: 675px;
     }
 }
 

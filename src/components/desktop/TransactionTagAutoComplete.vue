@@ -14,35 +14,36 @@
         :label="showLabel ? tt('Tags') : undefined"
         :placeholder="tt('None')"
         :items="allTagsWithGroupHeader"
+        :custom-filter="filterTag"
         :model-value="modelValue"
         v-model:search="tagSearchContent"
         @update:modelValue="updateModelValue"
     >
-        <template #chip="{ props, item }">
-            <v-chip :prepend-icon="mdiPound" :text="item.title" v-bind="props"/>
+        <template #chip="{ props, internalItem }">
+            <v-chip :prepend-icon="mdiPound" :text="internalItem.title" v-bind="props"/>
         </template>
 
         <template #subheader="{ props }">
-            <v-list-subheader>{{ props['title'] }}</v-list-subheader>
+            <v-list-subheader class="text-body-small">{{ props['title'] }}</v-list-subheader>
         </template>
 
-        <template #item="{ props, item }">
-            <v-list-item :value="item.value" v-bind="props" v-if="item.raw instanceof TransactionTag && !item.raw.hidden">
+        <template #item="{ props, internalItem }">
+            <v-list-item :value="internalItem.value" v-bind="props" v-if="internalItem.raw instanceof TransactionTag && !internalItem.raw.hidden">
                 <template #title>
                     <v-list-item-title>
                         <div class="d-flex align-center">
-                            <v-icon size="20" start :icon="mdiPound"/>
-                            <span>{{ item.title }}</span>
+                            <v-icon size="18" start :icon="mdiPound"/>
+                            <span class="ms-n1">{{ internalItem.title }}</span>
                         </div>
                     </v-list-item-title>
                 </template>
             </v-list-item>
-            <v-list-item :disabled="true" v-bind="props" v-else-if="item.raw instanceof TransactionTag && item.raw.hidden">
+            <v-list-item :disabled="true" v-bind="props" v-else-if="internalItem.raw instanceof TransactionTag && internalItem.raw.hidden">
                 <template #title>
                     <v-list-item-title>
                         <div class="d-flex align-center">
-                            <v-icon size="20" start :icon="mdiPound"/>
-                            <span>{{ item.title }}</span>
+                            <v-icon size="18" start :icon="mdiPound"/>
+                            <span class="ms-n1">{{ internalItem.title }}</span>
                         </div>
                     </v-list-item-title>
                 </template>
@@ -52,7 +53,7 @@
         <template #no-data>
             <v-list class="py-0">
                 <v-list-item v-if="tagSearchContent && allowAddNewTag" @click="saveNewTag(tagSearchContent)">{{ tt('format.misc.addNewTag', { tag: tagSearchContent }) }}</v-list-item>
-                <v-list-item v-else-if="!tagSearchContent || !allowAddNewTag">{{ tt('No available tag') }}</v-list-item>
+                <v-list-item class="text-body-medium" v-else-if="!tagSearchContent || !allowAddNewTag">{{ tt('No available tag') }}</v-list-item>
             </v-list>
         </template>
     </v-autocomplete>
@@ -66,10 +67,15 @@ import SnackBar from '@/components/desktop/SnackBar.vue';
 import { useTemplateRef } from 'vue';
 
 import { useI18n } from '@/locales/helpers.ts';
-import { type CommonTransactionTagSelectionProps, useTransactionTagSelectionBase } from '@/components/base/TransactionTagSelectionBase.ts';
+import {
+    type TransactionTagWithGroupHeader,
+    type CommonTransactionTagSelectionProps,
+    useTransactionTagSelectionBase
+} from '@/components/base/TransactionTagSelectionBase.ts';
 
 import { useTransactionTagsStore } from '@/stores/transactionTag.ts';
 
+import { NormalizedText } from '@/core/text.ts';
 import { TransactionTag } from '@/models/transaction_tag.ts';
 
 import type { ComponentDensity, InputVariant } from '@/lib/ui/desktop.ts';
@@ -126,6 +132,24 @@ function saveNewTag(tagName: string): void {
             snackbar.value?.showError(error);
         }
     });
+}
+
+function filterTag(value: string, query: string, item?: { value: unknown, raw: TransactionTagWithGroupHeader }): boolean {
+    if (!item) {
+        return false;
+    }
+
+    if ('type' in item.raw) {
+        return true;
+    }
+
+    const normalizedFilterContent = NormalizedText.normalizeForSearch(query || '');
+
+    if (!normalizedFilterContent) {
+        return true;
+    }
+
+    return NormalizedText.normalizeForSearch(item.raw.name).indexOf(normalizedFilterContent) >= 0;
 }
 
 function updateModelValue(newValue: string[]) {

@@ -1,5 +1,5 @@
 <template>
-    <v-text-field type="text" class="text-field-with-colored-label" :class="extraClass"
+    <v-text-field type="text" class="amount-input text-field-with-colored-label" :class="extraClass"
                   :color="color" :base-color="color"
                   :density="density" :variant="variant" :autofocus="autofocus"
                   :readonly="!!readonly" :disabled="!!disabled"
@@ -27,7 +27,7 @@
                   :label="label" :placeholder="placeholder"
                   :persistent-placeholder="!!persistentPlaceholder"
                   v-model="currentFormula" v-if="!hide && formulaMode"
-                  @keydown.enter="calculateFormula" @click="onClick">
+                  @keydown.enter.prevent @keyup.enter.stop.prevent="calculateFormula" @click="onClick">
         <template #prepend-inner v-if="currency && prependText">
             <div>{{ prependText }}</div>
         </template>
@@ -85,6 +85,7 @@ import { DEFAULT_DECIMAL_NUMBER_COUNT, AMOUNT_FACTOR } from '@/consts/numeral.ts
 import { TRANSACTION_MIN_AMOUNT, TRANSACTION_MAX_AMOUNT } from '@/consts/transaction.ts';
 
 import { isNumber, replaceAll } from '@/lib/common.ts';
+import { parseBigDecimal } from '@/lib/numeral.ts';
 import { evaluateExpressionToAmount } from '@/lib/evaluator.ts';
 import type { ComponentDensity, InputVariant } from '@/lib/ui/desktop.ts';
 import logger from '@/lib/logger.ts';
@@ -224,7 +225,7 @@ function calculateFormula(): void {
     finalFormula = numeralSystem.value.replaceLocalizedDigitsToWesternArabicDigits(finalFormula);
 
     try {
-        const calculatedAmount = evaluateExpressionToAmount(finalFormula);
+        const calculatedAmount: number | undefined = evaluateExpressionToAmount(finalFormula)?.toSafeIntegerNumber();
 
         if (isNumber(calculatedAmount)) {
             const textualValue = getFormattedValue(calculatedAmount);
@@ -290,7 +291,7 @@ function getInitedFormattedValue(value: number, flipNegative?: boolean): string 
 
 function getFormattedValue(value: number): string {
     if (!Number.isNaN(value) && Number.isFinite(value)) {
-        return formatAmountToLocalizedNumeralsWithoutDigitGrouping(value, props.currency);
+        return formatAmountToLocalizedNumeralsWithoutDigitGrouping(parseBigDecimal(value), props.currency);
     }
 
     return numeralSystem.value.digitZero;

@@ -16,15 +16,15 @@
             <small class="text-field-append-text smaller">{{ currentCurrencyValue }}</small>
         </template>
 
-        <template #item="{ props, item }">
-            <v-list-item :value="item.value" v-bind="props">
+        <template #item="{ props, internalItem }">
+            <v-list-item :value="internalItem.value" v-bind="props">
                 <template #title>
                     <v-list-item-title>
                         <div class="d-flex align-center">
-                            <span>{{ item.title }}</span>
+                            <span>{{ internalItem.title }}</span>
                             <v-spacer style="min-width: 40px" />
-                            <v-icon :icon="mdiCheck" v-if="currentCurrencyValue === item.raw.currencyCode" />
-                            <small class="text-field-append-text" v-if="currentCurrencyValue !== item.raw.currencyCode">{{ item.raw.currencyCode }}</small>
+                            <v-icon :icon="mdiCheck" v-if="currentCurrencyValue === internalItem.raw.currencyCode" />
+                            <small class="text-field-append-text" v-if="currentCurrencyValue !== internalItem.raw.currencyCode">{{ internalItem.raw.currencyCode }}</small>
                         </div>
                     </v-list-item-title>
                 </template>
@@ -37,6 +37,7 @@
 import { computed } from 'vue';
 import { useI18n } from '@/locales/helpers.ts';
 
+import { NormalizedText } from '@/core/text.ts';
 import type { LocalizedCurrencyInfo } from '@/core/currency.ts';
 
 import {
@@ -74,13 +75,13 @@ function filterCurrency(value: string, query: string, item?: { value: unknown, r
         return false;
     }
 
-    const lowerCaseFilterContent = query.toLowerCase() || '';
+    const normalizedFilterContent = NormalizedText.normalizeForSearch(query || '');
 
-    if (!lowerCaseFilterContent) {
+    if (!normalizedFilterContent) {
         return true;
     }
 
-    return item.raw.displayName.toLowerCase().indexOf(lowerCaseFilterContent) >= 0
-        || item.raw.currencyCode.toLowerCase().indexOf(lowerCaseFilterContent) >= 0;
+    return NormalizedText.normalizeForSearch(item.raw.displayName).indexOf(normalizedFilterContent) >= 0
+        || NormalizedText.normalizeForSearch(item.raw.currencyCode).indexOf(normalizedFilterContent) >= 0;
 }
 </script>

@@ -8,7 +8,7 @@
             </f7-nav-right>
         </f7-navbar>
 
-        <f7-list strong inset dividers class="margin-vertical skeleton-text" v-if="loading && isSupportedFileCache">
+        <f7-list strong inset dividers class="margin-vertical-half skeleton-text" v-if="loading && isSupportedFileCache">
             <f7-list-item group-title :sortable="false">
                 <small>{{ tt('File Cache') }}</small>
             </f7-list-item>
@@ -16,10 +16,10 @@
             <f7-list-item title="Application Code" after="Count"></f7-list-item>
             <f7-list-item title="Resource Files" after="Count"></f7-list-item>
             <f7-list-item title="Map Data" after="Count"></f7-list-item>
-            <f7-list-item title="Others" after="Count"></f7-list-item>
+            <f7-list-item title="Custom Icons" after="Count"></f7-list-item>
         </f7-list>
 
-        <f7-list strong inset dividers class="margin-vertical skeleton-text" v-if="loading">
+        <f7-list strong inset dividers :class="{ 'margin-vertical': isSupportedFileCache, 'margin-vertical-half': !isSupportedFileCache, 'skeleton-text': true }" v-if="loading">
             <f7-list-item group-title :sortable="false">
                 <small>{{ tt('Exchange Rates Data') }}</small>
             </f7-list-item>
@@ -34,7 +34,7 @@
             <f7-list-item title="Exchange Rates Data" after="Disable Cache"></f7-list-item>
         </f7-list>
 
-        <f7-list strong inset dividers class="margin-vertical" v-if="!loading && isSupportedFileCache">
+        <f7-list strong inset dividers class="margin-vertical-half" v-if="!loading && isSupportedFileCache">
             <f7-list-item group-title :sortable="false">
                 <small>{{ tt('File Cache') }}</small>
             </f7-list-item>
@@ -42,10 +42,10 @@
             <f7-list-item :title="tt('Application Code')" :after="fileCacheStatistics ? formatVolumeToLocalizedNumerals(fileCacheStatistics.codeCacheSize, 2) : '-'"></f7-list-item>
             <f7-list-item :title="tt('Resource Files')" :after="fileCacheStatistics ? formatVolumeToLocalizedNumerals(fileCacheStatistics.assetsCacheSize, 2) : '-'"></f7-list-item>
             <f7-list-item :title="tt('Map Data')" :after="fileCacheStatistics ? formatVolumeToLocalizedNumerals(fileCacheStatistics.mapCacheSize, 2) : '-'"></f7-list-item>
-            <f7-list-item :title="tt('Others')" :after="fileCacheStatistics ? formatVolumeToLocalizedNumerals(fileCacheStatistics.othersCacheSize, 2) : '-'"></f7-list-item>
+            <f7-list-item :title="tt('Custom Icons')" :after="fileCacheStatistics ? formatVolumeToLocalizedNumerals(fileCacheStatistics.customIconCacheSize, 2) : '-'"></f7-list-item>
         </f7-list>
 
-        <f7-list strong inset dividers class="margin-vertical" v-if="!loading">
+        <f7-list strong inset dividers :class="{ 'margin-vertical': isSupportedFileCache, 'margin-vertical-half': !isSupportedFileCache }" v-if="!loading">
             <f7-list-item group-title :sortable="false">
                 <small>{{ tt('Exchange Rates Data') }}</small>
             </f7-list-item>
@@ -104,6 +104,8 @@
                 <f7-actions-button :class="{ 'disabled': loading || !isSupportedFileCache || !fileCacheStatistics }"
                                    @click="clearMapCache">{{ tt('Clear Map Data Cache') }}</f7-actions-button>
                 <f7-actions-button :class="{ 'disabled': loading || !isSupportedFileCache || !fileCacheStatistics }"
+                                   @click="clearCustomIconsCache">{{ tt('Clear Custom Icon Cache') }}</f7-actions-button>
+                <f7-actions-button :class="{ 'disabled': loading || !isSupportedFileCache || !fileCacheStatistics }"
                                    @click="clearAllFileCache">{{ tt('Clear All File Cache') }}</f7-actions-button>
             </f7-actions-group>
             <f7-actions-group>
@@ -143,6 +145,7 @@ const {
     exchangeRatesDataCacheExpiration,
     loadCacheStatistics,
     clearMapDataCache,
+    clearCustomIconCache,
     clearApplicationCodeCache,
     clearAllBrowserCaches,
     clearExchangeRatesDataCache
@@ -171,6 +174,14 @@ function clearApplicationCodeFileCache(): void {
 function clearMapCache(): void {
     showConfirm('Are you sure you want to clear map data cache?', () => {
         clearMapDataCache().then(() => {
+            loadCacheStatistics(true);
+        });
+    });
+}
+
+function clearCustomIconsCache(): void {
+    showConfirm('Are you sure you want to clear custom icon cache?', () => {
+        clearCustomIconCache().then(() => {
             loadCacheStatistics(true);
         });
     });

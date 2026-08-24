@@ -3,6 +3,7 @@
         persistent-placeholder
         :readonly="readonly"
         :disabled="disabled"
+        :clearable="!emptyValue ? clearable : false"
         :label="label"
         :menu-props="{ contentClass: 'date-time-select-menu' }"
         v-model="dateTime"
@@ -107,13 +108,16 @@ import { setChildInputFocus } from '@/lib/ui/desktop.ts';
 const props = defineProps<{
     modelValue: number;
     timezoneUtcOffset: number;
+    emptyValue?: boolean;
     disabled?: boolean;
     readonly?: boolean;
+    clearable?: boolean;
     label?: string;
 }>();
 
 const emit = defineEmits<{
     (e: 'update:modelValue', value: number): void;
+    (e: 'clear:modelValue'): void;
     (e: 'error', message: string): void;
 }>();
 
@@ -154,7 +158,12 @@ const dateTime = computed<Date>({
     get: () => {
         return getLocalDatetimeFromSameDateTimeOfUnixTime(props.modelValue, props.timezoneUtcOffset);
     },
-    set: (value: Date) => {
+    set: (value: Date | null) => {
+        if (!value) {
+            emit('clear:modelValue');
+            return;
+        }
+
         const unixTime = getUnixTimeFromSameDateTimeOfLocalDatetime(value, props.timezoneUtcOffset);
 
         if (unixTime < 0) {
@@ -166,7 +175,7 @@ const dateTime = computed<Date>({
     }
 });
 
-const displayTime = computed<string>(() => formatDateTimeToLongDateTime(parseDateTimeFromUnixTimeWithTimezoneOffset(props.modelValue, props.timezoneUtcOffset)));
+const displayTime = computed<string>(() => props.emptyValue ? tt('None') : formatDateTimeToLongDateTime(parseDateTimeFromUnixTimeWithTimezoneOffset(props.modelValue, props.timezoneUtcOffset)));
 
 const hourItems = computed<TimePickerValue[]>(() => generateAllHours(1, isHourTwoDigits.value));
 const minuteItems = computed<TimePickerValue[]>(() => generateAllMinutesOrSeconds(1, isMinuteTwoDigits.value));
@@ -373,7 +382,7 @@ function onKeyDown(type: string, e: KeyboardEvent): void {
     max-height: inherit !important;
 }
 
-.date-time-select-menu .dp__menu {
+.date-time-select-menu .dp--menu {
     border: 0;
 }
 

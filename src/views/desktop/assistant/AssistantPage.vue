@@ -92,7 +92,7 @@
                                                 <span>{{ reference.sourceAccountName || tt('Account') }}</span>
                                             </div>
                                             <div class="assistant-reference-sub">
-                                                <span>{{ formatAmountToLocalizedNumeralsWithCurrency(reference.sourceAmount, reference.currency || false) }}</span>
+                                                <span>{{ formatAmountToLocalizedNumeralsWithCurrency(parseBigDecimal(reference.sourceAmount), reference.currency || false) }}</span>
                                                 <span v-if="reference.similarityScore">· {{ tt('Similarity') }} {{ reference.similarityScore }}</span>
                                             </div>
                                         </div>
@@ -141,6 +141,7 @@ import AssistantMarkdownContent from '@/components/common/AssistantMarkdownConte
 import { nextTick, useTemplateRef, watch } from 'vue';
 
 import { useI18n } from '@/locales/helpers.ts';
+import { parseBigDecimal } from '@/lib/numeral.ts';
 import { getAIAssistantModelID } from '@/lib/server_settings.ts';
 import { useAssistantPageBase } from '@/views/base/assistant/AssistantPageBase.ts';
 

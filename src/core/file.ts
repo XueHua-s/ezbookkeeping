@@ -10,6 +10,7 @@ export class KnownFileType {
     public static readonly MERMAID = new KnownFileType('mermaid', 'text/vnd.mermaid');
     public static readonly JS = new KnownFileType('js', 'application/javascript');
     public static readonly JPG = new KnownFileType('jpg', 'image/jpeg');
+    public static readonly PNG = new KnownFileType('png', 'image/png');
 
     public readonly extension: string;
     public readonly contentType: string;
@@ -85,7 +86,10 @@ export interface ImportFileType extends ImportFileTypeAndExtensions {
     readonly subTypes?: ImportFileTypeSubType[];
     readonly supportedEncodings?: string[];
     readonly dataFromTextbox?: boolean;
+    readonly needAITextRecognition?: boolean;
+    readonly needAIImageRecognition?: boolean;
     readonly supportedAdditionalOptions?: ImportFileTypeSupportedAdditionalOptions;
+    readonly supportedAIAdditionalPrompt?: boolean;
     readonly document?: {
         readonly supportMultiLanguages: boolean | string;
         readonly anchor: string;
@@ -110,7 +114,10 @@ export interface LocalizedImportFileType extends ImportFileTypeAndExtensions {
     readonly subTypes?: LocalizedImportFileTypeSubType[];
     readonly supportedEncodings?: LocalizedImportFileTypeSupportedEncodings[];
     readonly dataFromTextbox?: boolean;
+    readonly needAITextRecognition?: boolean;
+    readonly needAIImageRecognition?: boolean;
     readonly supportedAdditionalOptions?: ImportFileTypeSupportedAdditionalOptions;
+    readonly supportedAIAdditionalPrompt?: boolean;
     readonly document?: LocalizedImportFileDocument;
 }
 

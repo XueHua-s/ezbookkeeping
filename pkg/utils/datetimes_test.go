@@ -161,6 +161,16 @@ func TestFormatUnixTimeToNumericLocalDateTime(t *testing.T) {
 	assert.Equal(t, expectedValue, actualValue)
 }
 
+func TestFormatNumericYearMonthDayToLongDate(t *testing.T) {
+	expectedValue := "2026-12-31"
+	actualValue := FormatNumericYearMonthDayToLongDate(int32(20261231))
+	assert.Equal(t, expectedValue, actualValue)
+
+	expectedValue = "2026-01-01"
+	actualValue = FormatNumericYearMonthDayToLongDate(int32(20260101))
+	assert.Equal(t, expectedValue, actualValue)
+}
+
 func TestGetMinUnixTimeWithSameLocalDateTime(t *testing.T) {
 	expectedValue := int64(1690797600)
 	actualValue := GetMinUnixTimeWithSameLocalDateTime(1690819200, 480)
@@ -421,6 +431,11 @@ func TestFormatTimezoneOffset_FixedTimezone(t *testing.T) {
 	expectedValue = "+00:00"
 	actualValue = FormatTimezoneOffset(time.Now().Unix(), timezone)
 	assert.Equal(t, expectedValue, actualValue)
+
+	timezone = time.FixedZone("Test Timezone", -30*60)
+	expectedValue = "-00:30"
+	actualValue = FormatTimezoneOffset(time.Now().Unix(), timezone)
+	assert.Equal(t, expectedValue, actualValue)
 }
 
 func TestFormatTimezoneOffset_TimezoneWithDST(t *testing.T) {
@@ -461,6 +476,11 @@ func TestFormatTimezoneOffsetFromHoursOffset(t *testing.T) {
 
 	expectedValue = "+00:00"
 	actualValue, err = FormatTimezoneOffsetFromHoursOffset("0")
+	assert.Nil(t, err)
+	assert.Equal(t, expectedValue, actualValue)
+
+	expectedValue = "-00:30"
+	actualValue, err = FormatTimezoneOffsetFromHoursOffset("-0.5")
 	assert.Nil(t, err)
 	assert.Equal(t, expectedValue, actualValue)
 }

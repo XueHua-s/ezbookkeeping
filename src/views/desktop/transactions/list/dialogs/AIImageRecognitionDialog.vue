@@ -1,143 +1,50 @@
 <template>
-    <v-dialog width="900" :persistent="loading || recognizing || imageItems.length > 0" v-model="showState" @paste="onPaste">
-        <v-card class="pa-sm-1 pa-md-2">
-            <template #title>
-                <h4 class="text-h4">{{ tt('AI Image Recognition') }}</h4>
+    <v-dialog width="800" :persistent="loading || recognizing || !!imageFile" v-model="showState" @paste="onPaste">
+        <one-column-dialog-layout content-class="pa-0" content-style="height: 500px"
+                                  :disabled="loading || recognizing" :loading="loading || recognizing"
+                                  :title="tt('AI Image Recognition')"
+                                  :cancel-button-title="tt('Cancel')"
+                                  @cancel="cancel">
+            <template #toolbar>
+                <v-btn class="mx-2" density="comfortable" variant="outlined"
+                       :disabled="loading || recognizing || !imageFile" @click="recognize"
+                       v-if="!recognizing">{{ tt('Recognize') }}
+                </v-btn>
+                <v-btn class="mx-2" density="comfortable" variant="outlined"
+                       :disabled="loading"
+                       @click="cancelRecognize" v-if="recognizing && cancelRecognizingUuid">{{ tt('Cancel Recognition') }}</v-btn>
             </template>
 
-            <v-card-text class="d-flex flex-column flex-md-row flex-grow-1 overflow-y-auto" style="height: 480px">
-                <!-- Left: Image thumbnails area -->
-                <div class="w-50 h-100 border position-relative me-2 d-flex flex-column"
+            <template #content>
+                <div class="w-100 h-100 border position-relative"
                      @dragenter.prevent="onDragEnter"
                      @dragover.prevent
                      @dragleave.prevent="onDragLeave"
                      @drop.prevent="onDrop">
-
-                    <!-- Empty state / drag overlay -->
-                    <div class="d-flex w-100 h-100 justify-center align-center justify-content-center text-center px-4 position-absolute"
-                         style="z-index: 10; top: 0; left: 0;"
-                         :class="{ 'dropzone': true, 'dropzone-dark': isDarkMode, 'dropzone-blurry-bg': isDragOver }"
-                         v-if="imageItems.length === 0 || isDragOver">
-                        <div class="d-inline-flex flex-column" v-if="!loading && imageItems.length === 0 && !isDragOver">
-                            <h3 class="pa-2">{{ tt('You can drag and drop, paste or click to select receipt or transaction images') }}</h3>
-                            <span class="pa-2">{{ tt('Uploaded image and personal data will be sent to the large language model, please be aware of potential privacy risks.') }}</span>
-                            <v-btn class="mt-4 mx-auto" variant="outlined" @click="showOpenImageDialog">
-                                {{ tt('Select Images') }}
-                            </v-btn>
+                    <div class="d-flex w-100 h-100 justify-center align-center justify-content-center text-center px-4"
+                         :class="{ 'dropzone': true, 'dropzone-dark': isDarkMode, 'dropzone-blurry-bg': loading || isDragOver || recognizing, 'dropzone-dragover': isDragOver }">
+                        <div class="d-inline-flex flex-column" v-if="!loading && !imageFile && !isDragOver">
+                            <span class="text-title-medium font-weight-bold pa-2">{{ tt('You can drag and drop, paste or click to select a receipt or transaction image') }}</span>
+                            <span class="text-body-large pa-2">{{ tt('Uploaded image and personal data will be sent to the large language model, please be aware of potential privacy risks.') }}</span>
                         </div>
-                        <h3 class="pa-2" v-else-if="isDragOver">{{ tt('Release to load image') }}</h3>
+                        <span class="text-title-medium font-weight-bold pa-2" v-else-if="!loading && isDragOver">{{ tt('Release to load image') }}</span>
+                        <span class="text-title-medium font-weight-bold pa-2" v-else-if="loading">{{ tt('Loading image...') }}</span>
+                        <span class="text-title-medium font-weight-bold pa-2" v-else-if="recognizing">{{ tt('AI can make mistakes. Check important info.') }}</span>
                     </div>
-
-                    <!-- Thumbnail grid -->
-                    <div class="flex-grow-1 overflow-y-auto pa-2" v-if="imageItems.length > 0"
-                         @click.self="showOpenImageDialog">
-                        <div class="d-flex flex-wrap gap-2">
-                            <div v-for="(item, index) in imageItems" :key="index"
-                                 class="image-thumb-wrapper position-relative"
-                                 :class="{
-                                     'image-thumb-processing': item.status === 'processing',
-                                     'image-thumb-done': item.status === 'done',
-                                     'image-thumb-error': item.status === 'error'
-                                 }">
-                                <v-img :src="item.src" width="120" height="90" cover class="rounded border" />
-                                <v-btn v-if="!recognizing" icon size="x-small" color="error" variant="flat"
-                                       class="position-absolute" style="top: -6px; right: -6px; z-index: 2;"
-                                       @click="removeImage(index)">
-                                    <v-icon size="14">{{ mdiClose }}</v-icon>
-                                </v-btn>
-                                <div v-if="item.status === 'processing'" class="image-thumb-overlay d-flex align-center justify-center">
-                                    <v-progress-circular indeterminate size="24" color="white" />
-                                </div>
-                                <div v-else-if="item.status === 'done'" class="image-thumb-overlay-icon">
-                                    <v-icon color="success" size="20">{{ mdiCheckCircle }}</v-icon>
-                                </div>
-                                <div v-else-if="item.status === 'error'" class="image-thumb-overlay-icon">
-                                    <v-icon color="error" size="20">{{ mdiAlertCircle }}</v-icon>
-                                </div>
-                            </div>
-                            <!-- Add more button -->
-                            <div v-if="!recognizing" class="image-thumb-add d-flex align-center justify-center rounded border cursor-pointer"
-                                 @click="showOpenImageDialog">
-                                <v-icon size="32" color="grey">{{ mdiPlus }}</v-icon>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Image count badge -->
-                    <div v-if="imageItems.length > 0" class="pa-2 border-t text-caption text-center">
-                        {{ tt('{count} image(s) selected', { count: imageItems.length }) }}
-                    </div>
+                    <v-img :class="{ 'cursor-pointer': !loading && !recognizing && !isDragOver, 'h-100': true }"
+                           :src="imageSrc" @click="showOpenImageDialog">
+                        <template #placeholder>
+                            <div :class="{ 'w-100 h-100': true, 'bg-grey-200': !isDarkMode, 'bg-grey-50': isDarkMode }"></div>
+                        </template>
+                    </v-img>
                 </div>
+            </template>
 
-                <!-- Right: Results area -->
-                <div class="w-50 h-100 border ms-2 d-flex flex-column">
-                    <div v-if="results.length === 0" class="d-flex w-100 h-100 align-center justify-center text-center px-4">
-                        <span class="text-grey" v-if="!recognizing">{{ tt('Recognition results will appear here') }}</span>
-                        <div v-else class="d-flex flex-column align-center">
-                            <v-progress-circular indeterminate size="40" class="mb-3" />
-                            <span>{{ tt('AI can make mistakes. Check important info.') }}</span>
-                        </div>
-                    </div>
-
-                    <div v-else class="flex-grow-1 overflow-y-auto">
-                        <v-list density="compact" class="pa-0">
-                            <v-list-item v-for="(item, index) in results" :key="index"
-                                         :class="{ 'bg-red-lighten-5': !item.success }">
-                                <template #prepend>
-                                    <v-checkbox-btn v-if="item.success"
-                                                      v-model="selectedFlags[index]"
-                                                      density="compact" hide-details />
-                                    <v-icon v-else color="error" size="20" class="me-2">{{ mdiAlertCircle }}</v-icon>
-                                </template>
-                                <v-list-item-title v-if="item.success && item.result" class="text-body-2">
-                                    <v-chip size="x-small" :color="getTypeColor(item.result.type)" class="me-1">
-                                        {{ getTypeName(item.result.type) }}
-                                    </v-chip>
-                                    <span v-if="item.result.sourceAmount">{{ formatAmount(item.result.sourceAmount) }}</span>
-                                </v-list-item-title>
-                                <v-list-item-title v-else class="text-body-2 text-error">
-                                    #{{ item.index + 1 }}: {{ item.error || tt('Failed') }}
-                                </v-list-item-title>
-                                <v-list-item-subtitle v-if="item.success && item.result" class="text-caption">
-                                    {{ item.result.comment || '' }}
-                                </v-list-item-subtitle>
-                            </v-list-item>
-                        </v-list>
-                    </div>
-
-                    <div v-if="results.length > 0" class="pa-2 border-t text-caption text-center">
-                        {{ tt('Recognition complete') }}: {{ successCount }}/{{ results.length }}
-                    </div>
-                </div>
-            </v-card-text>
-
-            <v-card-text>
-                <div class="w-100 d-flex justify-center flex-wrap mt-sm-1 mt-md-2 gap-4">
-                    <!-- Single image mode: Recognize button -->
-                    <v-btn v-if="results.length === 0"
-                           :disabled="loading || recognizing || imageItems.length === 0"
-                           @click="recognize">
-                        {{ tt('Recognize') }}
-                        <v-progress-circular indeterminate size="22" class="ms-2" v-if="recognizing"></v-progress-circular>
-                    </v-btn>
-                    <!-- Multi result: Import Selected -->
-                    <v-btn v-if="results.length > 0 && successCount > 0"
-                           color="primary"
-                           :disabled="selectedCount === 0"
-                           @click="importSelected">
-                        {{ tt('Import Selected') }} ({{ selectedCount }})
-                    </v-btn>
-                    <v-btn color="secondary" variant="tonal" :disabled="loading"
-                           @click="cancelRecognize" v-if="recognizing && cancelRecognizingUuid">{{ tt('Cancel Recognition') }}</v-btn>
-                    <v-btn color="secondary" variant="tonal" :disabled="loading || recognizing"
-                           @click="cancel" v-if="!recognizing || !cancelRecognizingUuid">{{ tt('Cancel') }}</v-btn>
-                </div>
-            </v-card-text>
-        </v-card>
+        </one-column-dialog-layout>
     </v-dialog>
 
     <snack-bar ref="snackbar" />
-    <input ref="imageInput" type="file" style="display: none" multiple :accept="SUPPORTED_IMAGE_EXTENSIONS" @change="openImages($event)" />
+    <input ref="imageInput" type="file" style="display: none" :accept="SUPPORTED_IMAGE_EXTENSIONS" @change="openImage($event)" />
 </template>
 
 <script setup lang="ts">
@@ -150,31 +57,23 @@ import { useI18n } from '@/locales/helpers.ts';
 
 import { useTransactionsStore } from '@/stores/transaction.ts';
 
+import { ImageUploadQualityType } from '@/core/image.ts';
 import { KnownFileType } from '@/core/file.ts';
-import { TransactionType } from '@/core/transaction.ts';
 import { ThemeType } from '@/core/theme.ts';
 import { SUPPORTED_IMAGE_EXTENSIONS } from '@/consts/file.ts';
 
-import type { RecognizedReceiptImageResponse, RecognizedReceiptImageResultItem } from '@/models/large_language_model.ts';
+import type { RecognizedTransactionResponse } from '@/models/large_language_model.ts';
+
+export interface AIImageRecognitionResult {
+    response: RecognizedTransactionResponse;
+    imageFile: File;
+}
 
 import { generateRandomUUID } from '@/lib/misc.ts';
-import { compressJpgImage } from '@/lib/ui/common.ts';
+import { compressJpgImageByQuality } from '@/lib/ui/common.ts';
 import logger from '@/lib/logger.ts';
 
-import {
-    mdiClose,
-    mdiPlus,
-    mdiCheckCircle,
-    mdiAlertCircle
-} from '@mdi/js';
-
 type SnackBarType = InstanceType<typeof SnackBar>;
-
-interface ImageItem {
-    file: File;
-    src: string;
-    status: 'pending' | 'processing' | 'done' | 'error';
-}
 
 const theme = useTheme();
 
@@ -185,63 +84,44 @@ const transactionsStore = useTransactionsStore();
 const snackbar = useTemplateRef<SnackBarType>('snackbar');
 const imageInput = useTemplateRef<HTMLInputElement>('imageInput');
 
-let resolveFunc: ((responses: RecognizedReceiptImageResponse[]) => void) | null = null;
+let resolveFunc: ((result: AIImageRecognitionResult) => void) | null = null;
 let rejectFunc: ((reason?: unknown) => void) | null = null;
 
 const showState = ref<boolean>(false);
 const loading = ref<boolean>(false);
 const recognizing = ref<boolean>(false);
 const cancelRecognizingUuid = ref<string | undefined>(undefined);
-const imageItems = ref<ImageItem[]>([]);
-const results = ref<RecognizedReceiptImageResultItem[]>([]);
-const selectedFlags = ref<boolean[]>([]);
+const imageFile = ref<File | null>(null);
+const imageSrc = ref<string | undefined>(undefined);
 const isDragOver = ref<boolean>(false);
 
 const isDarkMode = computed<boolean>(() => theme.global.name.value === ThemeType.Dark);
-const successCount = computed<number>(() => results.value.filter(r => r.success).length);
-const selectedCount = computed<number>(() => selectedFlags.value.filter(Boolean).length);
 
-function loadImages(files: File[]): void {
+function loadImage(file: File): void {
     loading.value = true;
+    imageFile.value = null;
+    imageSrc.value = undefined;
 
-    const promises = files.map(file =>
-        compressJpgImage(file, 1280, 1280, 0.8).then(blob => {
-            const compressedFile = KnownFileType.JPG.createFileFromBlob(blob, "image");
-            const src = URL.createObjectURL(blob);
-            imageItems.value.push({ file: compressedFile, src, status: 'pending' });
-        }).catch(error => {
-            logger.error('failed to compress image', error);
-        })
-    );
-
-    Promise.all(promises).then(() => {
+    compressJpgImageByQuality(file, ImageUploadQualityType.HD720P).then(blob => {
+        imageFile.value = KnownFileType.JPG.createFileFromBlob(blob, "image");
+        imageSrc.value = URL.createObjectURL(blob);
         loading.value = false;
-    }).catch(() => {
+    }).catch(error => {
+        imageFile.value = null;
+        imageSrc.value = undefined;
         loading.value = false;
+        logger.error('failed to compress image', error);
         snackbar.value?.showError('Unable to load image');
     });
 }
 
-function removeImage(index: number): void {
-    const item = imageItems.value[index];
-
-    if (item?.src) {
-        URL.revokeObjectURL(item.src);
-    }
-
-    imageItems.value.splice(index, 1);
-    results.value = [];
-    selectedFlags.value = [];
-}
-
-function open(): Promise<RecognizedReceiptImageResponse[]> {
+function open(): Promise<AIImageRecognitionResult> {
     showState.value = true;
     loading.value = false;
     recognizing.value = false;
     cancelRecognizingUuid.value = undefined;
-    imageItems.value = [];
-    results.value = [];
-    selectedFlags.value = [];
+    imageFile.value = null;
+    imageSrc.value = undefined;
 
     return new Promise((resolve, reject) => {
         resolveFunc = resolve;
@@ -250,75 +130,51 @@ function open(): Promise<RecognizedReceiptImageResponse[]> {
 }
 
 function showOpenImageDialog(): void {
-    if (loading.value || recognizing.value) {
+    if (loading.value || recognizing.value || isDragOver.value) {
         return;
     }
 
     imageInput.value?.click();
 }
 
-function openImages(event: Event): void {
+function openImage(event: Event): void {
     if (!event || !event.target) {
         return;
     }
 
     const el = event.target as HTMLInputElement;
 
-    if (!el.files || !el.files.length) {
+    if (!el.files || !el.files.length || !el.files[0]) {
         return;
     }
 
-    const files = Array.from(el.files) as File[];
+    const image = el.files[0] as File;
+
     el.value = '';
 
-    loadImages(files);
+    loadImage(image);
 }
 
 function recognize(): void {
-    if (loading.value || recognizing.value || imageItems.value.length === 0) {
+    if (loading.value || recognizing.value || !imageFile.value) {
         return;
     }
 
+    const currentImageFile = imageFile.value;
     cancelRecognizingUuid.value = generateRandomUUID();
     recognizing.value = true;
-    results.value = [];
-    selectedFlags.value = [];
 
-    // Mark all as processing
-    for (const item of imageItems.value) {
-        item.status = 'processing';
-    }
-
-    const files = imageItems.value.map(item => item.file);
-
-    transactionsStore.recognizeReceiptImages({
-        imageFiles: files,
+    transactionsStore.recognizeReceiptImage({
+        imageFile: imageFile.value,
         cancelableUuid: cancelRecognizingUuid.value
     }).then(response => {
-        results.value = response.results;
-        selectedFlags.value = response.results.map(r => r.success);
-
-        // Update image statuses based on recognition results
-        for (const resultItem of response.results) {
-            const imageItem = imageItems.value[resultItem.index];
-
-            if (imageItem) {
-                imageItem.status = resultItem.success ? 'done' : 'error';
-            }
-        }
-
+        resolveFunc?.({ response: response, imageFile: currentImageFile });
+        showState.value = false;
         recognizing.value = false;
         cancelRecognizingUuid.value = undefined;
     }).catch(error => {
         if (error.canceled) {
             return;
-        }
-
-        // Mark all as error
-        for (const item of imageItems.value) {
-            if (item.status === 'processing') {
-                item.status = 'error';
-            }
         }
 
         recognizing.value = false;
@@ -330,31 +186,6 @@ function recognize(): void {
     });
 }
 
-function importSelected(): void {
-    const selected: RecognizedReceiptImageResponse[] = [];
-
-    for (let i = 0; i < results.value.length; i++) {
-        if (!selectedFlags.value[i]) {
-            continue;
-        }
-
-        const item = results.value[i];
-
-        if (item?.success && item.result) {
-            selected.push(item.result);
-        }
-    }
-
-    if (selected.length === 0) {
-        snackbar.value?.showError('No results to import');
-        return;
-    }
-
-    resolveFunc?.(selected);
-    showState.value = false;
-    cleanup();
-}
-
 function cancelRecognize(): void {
     if (!cancelRecognizingUuid.value) {
         return;
@@ -364,55 +195,17 @@ function cancelRecognize(): void {
     recognizing.value = false;
     cancelRecognizingUuid.value = undefined;
 
-    for (const item of imageItems.value) {
-        if (item.status === 'processing') {
-            item.status = 'pending';
-        }
-    }
-
     snackbar.value?.showMessage('User Canceled');
 }
 
 function cancel(): void {
     rejectFunc?.();
     showState.value = false;
-    cleanup();
-}
-
-function cleanup(): void {
-    for (const item of imageItems.value) {
-        if (item.src) {
-            URL.revokeObjectURL(item.src);
-        }
-    }
     loading.value = false;
     recognizing.value = false;
     cancelRecognizingUuid.value = undefined;
-    imageItems.value = [];
-    results.value = [];
-    selectedFlags.value = [];
-}
-
-function getTypeColor(type: number): string {
-    switch (type) {
-        case TransactionType.Income: return 'success';
-        case TransactionType.Expense: return 'error';
-        case TransactionType.Transfer: return 'info';
-        default: return 'grey';
-    }
-}
-
-function getTypeName(type: number): string {
-    switch (type) {
-        case TransactionType.Income: return tt('Income');
-        case TransactionType.Expense: return tt('Expense');
-        case TransactionType.Transfer: return tt('Transfer');
-        default: return '';
-    }
-}
-
-function formatAmount(amount: number): string {
-    return (amount / 100).toFixed(2);
+    imageFile.value = null;
+    imageSrc.value = undefined;
 }
 
 function onDragEnter(): void {
@@ -434,9 +227,8 @@ function onDrop(event: DragEvent): void {
 
     isDragOver.value = false;
 
-    if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length) {
-        const files = Array.from(event.dataTransfer.files) as File[];
-        loadImages(files);
+    if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length && event.dataTransfer.files[0]) {
+        loadImage(event.dataTransfer.files[0] as File);
     }
 }
 
@@ -446,22 +238,18 @@ function onPaste(event: ClipboardEvent) {
         return;
     }
 
-    const files: File[] = [];
-
     for (let i = 0; i < event.clipboardData.items.length; i++) {
         const item = event.clipboardData.items[i];
 
         if (item && item.type.startsWith('image/')) {
             const file = item.getAsFile();
+
             if (file) {
-                files.push(file);
+                loadImage(file);
+                event.preventDefault();
+                return;
             }
         }
-    }
-
-    if (files.length > 0) {
-        loadImages(files);
-        event.preventDefault();
     }
 }
 
@@ -469,71 +257,3 @@ defineExpose({
     open
 });
 </script>
-
-<style>
-.dropzone {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    pointer-events: none;
-    border-radius: 8px;
-    z-index: 10;
-
-    h3, span {
-        color: rgb(var(--v-theme-on-grey-200)) !important;
-        text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
-    }
-
-    &.dropzone-dark {
-        h3, span {
-            color: rgb(var(--v-theme-on-grey-100)) !important;
-            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
-        }
-    }
-}
-
-.dropzone-blurry-bg {
-    /* stylelint-disable property-no-vendor-prefix */
-    -webkit-backdrop-filter: blur(6px);
-    backdrop-filter: blur(6px);
-}
-
-.dropzone-dragover {
-    border: 6px dashed rgba(var(--v-border-color),var(--v-border-opacity));
-}
-
-.image-thumb-wrapper {
-    width: 120px;
-    height: 90px;
-    flex-shrink: 0;
-}
-
-.image-thumb-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.4);
-    border-radius: 4px;
-}
-
-.image-thumb-overlay-icon {
-    position: absolute;
-    bottom: 2px;
-    right: 2px;
-}
-
-.image-thumb-add {
-    width: 120px;
-    height: 90px;
-    flex-shrink: 0;
-    border-style: dashed !important;
-}
-
-.image-thumb-error {
-    border: 2px solid rgb(var(--v-theme-error));
-    border-radius: 4px;
-}
-</style>

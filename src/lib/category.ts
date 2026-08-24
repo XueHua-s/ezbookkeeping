@@ -1,4 +1,6 @@
-import { reversed, keys, values } from '@/core/base.ts';
+import { reversed, keys, keysIfValueEquals, values } from '@/core/base.ts';
+import { NormalizedText } from '@/core/text.ts';
+import { IconType } from '@/core/icon.ts';
 import { type LocalizedPresetCategory, CategoryType } from '@/core/category.ts';
 import { TransactionType } from '@/core/transaction.ts';
 import {
@@ -40,6 +42,7 @@ export function localizedPresetCategoryToTransactionCategoryCreateWithSubCategor
             type: subPresetCategory.type,
             parentId: '0',
             icon: subPresetCategory.icon,
+            iconType: IconType.System,
             color: subPresetCategory.color,
             comment: '',
             clientSessionId: ''
@@ -52,6 +55,7 @@ export function localizedPresetCategoryToTransactionCategoryCreateWithSubCategor
         name: presetCategory.name,
         type: presetCategory.type,
         icon: presetCategory.icon,
+        iconType: IconType.System,
         color: presetCategory.color,
         subCategories: subCategories
     };
@@ -140,7 +144,7 @@ export function filterTransactionCategories(allTransactionCategories: Record<num
             || allowCategoryTypes[CategoryType.Transfer]);
 
     const allCategoryTypes = [ CategoryType.Income, CategoryType.Expense, CategoryType.Transfer ];
-    const lowercaseFilterContent = allowCategoryName ? allowCategoryName.toLowerCase() : '';
+    const normalizedFilterContent = allowCategoryName ? NormalizedText.normalizeForSearch(allowCategoryName) : '';
 
     for (const categoryType of allCategoryTypes) {
         const allCategories = allTransactionCategories[categoryType];
@@ -160,7 +164,7 @@ export function filterTransactionCategories(allTransactionCategories: Record<num
                 continue;
             }
 
-            const categoryMatchesName = !lowercaseFilterContent || category.name.toLowerCase().includes(lowercaseFilterContent);
+            const categoryMatchesName = !normalizedFilterContent || NormalizedText.normalizeForSearch(category.name).includes(normalizedFilterContent);
             const filteredSubCategories: TransactionCategory[] = [];
 
             if (category.subCategories) {
@@ -169,7 +173,7 @@ export function filterTransactionCategories(allTransactionCategories: Record<num
                         continue;
                     }
 
-                    if (!categoryMatchesName && lowercaseFilterContent && !subCategory.name.toLowerCase().includes(lowercaseFilterContent)) {
+                    if (!categoryMatchesName && normalizedFilterContent && !NormalizedText.normalizeForSearch(subCategory.name).includes(normalizedFilterContent)) {
                         continue;
                     }
 
@@ -232,6 +236,44 @@ export function getFinalCategoryIdsByFilteredCategoryIds(allTransactionCategorie
     }
 
     return finalCategoryIds;
+}
+
+export function getIncludedTransactionCategoriesDisplayContent(excludeTransactionCategoryIds: Record<string, boolean>, allTransactionCategoriesMap: Record<string, TransactionCategory>): string {
+    if (!allTransactionCategoriesMap) {
+        return '';
+    }
+
+    let hasExcludeTransactionCategory = false;
+
+    for (const transactionCategoryId of keysIfValueEquals(excludeTransactionCategoryIds, true)) {
+        if (allTransactionCategoriesMap[transactionCategoryId]) {
+            hasExcludeTransactionCategory = true;
+            break;
+        }
+    }
+
+    if (!hasExcludeTransactionCategory) {
+        return 'All';
+    }
+
+    let allTransactionCategoryExcluded = true;
+
+    for (const transactionCategory of values(allTransactionCategoriesMap)) {
+        if (transactionCategory.type !== CategoryType.Income && transactionCategory.type !== CategoryType.Expense) {
+            continue;
+        }
+
+        if (!excludeTransactionCategoryIds[transactionCategory.id]) {
+            allTransactionCategoryExcluded = false;
+            break;
+        }
+    }
+
+    if (allTransactionCategoryExcluded) {
+        return 'None';
+    }
+
+    return 'Partial';
 }
 
 export function isSubCategoryIdAvailable(categories: TransactionCategory[], categoryId: string): boolean {

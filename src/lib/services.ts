@@ -24,6 +24,7 @@ import {
     DEFAULT_UPLOAD_API_TIMEOUT,
     DEFAULT_EXPORT_API_TIMEOUT,
     DEFAULT_IMPORT_API_TIMEOUT,
+    DEFAULT_BATCH_UPDATE_TRANSACTIONS_API_TIMEOUT,
     DEFAULT_CLEAR_ALL_TRANSACTIONS_API_TIMEOUT,
     DEFAULT_LLM_API_TIMEOUT,
     GOOGLE_MAP_JAVASCRIPT_URL,
@@ -34,6 +35,7 @@ import {
 import type {
     AccountCreateRequest,
     AccountModifyRequest,
+    AccountUpdateLastReconciledTimeRequest,
     AccountInfoResponse,
     AccountHideRequest,
     AccountMoveRequest,
@@ -64,8 +66,14 @@ import type {
 import type {
     TransactionCreateRequest,
     TransactionModifyRequest,
+    TransactionBatchUpdateCategoryRequest,
+    TransactionBatchUpdateAccountRequest,
+    TransactionBatchAddTagsRequest,
+    TransactionBatchRemoveTagsRequest,
+    TransactionBatchClearTagsRequest,
     TransactionMoveBetweenAccountsRequest,
     TransactionDeleteRequest,
+    TransactionBatchDeleteRequest,
     TransactionImportRequest,
     TransactionListByMaxTimeRequest,
     TransactionListInMonthByPageRequest,
@@ -82,7 +90,9 @@ import type {
     TransactionStatisticAssetTrendsRequest,
     TransactionStatisticAssetTrendsResponseItem,
     TransactionAmountsRequestParams,
-    TransactionAmountsResponse
+    TransactionAmountsResponse,
+    TransactionDailyAmountsRequest,
+    TransactionDailyAmountsResponseItem
 } from '@/models/transaction.ts';
 import {
     TransactionAmountsRequest
@@ -169,12 +179,16 @@ import type {
     UserApplicationCloudSettingsUpdateRequest
 } from '@/models/user_app_cloud_setting.ts';
 import type {
-    RecognizedReceiptImageResponse,
-    RecognizedReceiptImageBatchResponse,
+    RecognizedTransactionResponse,
     AIAssistantChatRequest,
     AIAssistantChatResponse,
     AIAssistantChatStreamChunk
 } from '@/models/large_language_model.ts';
+import type {
+    UserCustomIconInfoResponse,
+    UserCustomIconMoveRequest,
+    UserCustomIconDeleteRequest
+} from '@/models/user_custom_icon.ts';
 
 import {
     getCurrentToken,
@@ -467,9 +481,9 @@ export default {
             const tagFilter = encodeURIComponent(req.tagFilter);
             const amountFilter = encodeURIComponent(req.amountFilter);
             const keyword = encodeURIComponent(req.keyword);
-            params = `max_time=${req.maxTime}&min_time=${req.minTime}&type=${req.type}&category_ids=${req.categoryIds}&account_ids=${req.accountIds}&tag_filter=${tagFilter}&amount_filter=${amountFilter}&keyword=${keyword}`;
+            params = `max_time=${req.maxTime}&min_time=${req.minTime}&type=${req.type}&category_ids=${req.categoryIds}&account_ids=${req.accountIds}&tag_filter=${tagFilter}&amount_filter=${amountFilter}&keyword=${keyword}&match_mode=${req.matchMode}`;
         } else {
-            params = 'max_time=0&min_time=0&type=0&category_ids=&account_ids=&tag_filter=&amount_filter=&keyword=';
+            params = 'max_time=0&min_time=0&type=0&category_ids=&account_ids=&tag_filter=&amount_filter=&keyword=&match_mode=0';
         }
 
         if (fileType === 'csv') {
@@ -511,6 +525,9 @@ export default {
     modifyAccount: (req: AccountModifyRequest): ApiResponsePromise<AccountInfoResponse> => {
         return axios.post<ApiResponse<AccountInfoResponse>>('v1/accounts/modify.json', req);
     },
+    updateAccountLastReconciledTime: (req: AccountUpdateLastReconciledTimeRequest): ApiResponsePromise<boolean> => {
+        return axios.post<ApiResponse<boolean>>('v1/accounts/update/last_reconciled_time.json', req);
+    },
     hideAccount: (req: AccountHideRequest): ApiResponsePromise<boolean> => {
         return axios.post<ApiResponse<boolean>>('v1/accounts/hide.json', req);
     },
@@ -527,13 +544,13 @@ export default {
         const tagFilter = encodeURIComponent(req.tagFilter);
         const amountFilter = encodeURIComponent(req.amountFilter);
         const keyword = encodeURIComponent(req.keyword);
-        return axios.get<ApiResponse<TransactionInfoPageWrapperResponse>>(`v1/transactions/list.json?max_time=${req.maxTime}&min_time=${req.minTime}&type=${req.type}&category_ids=${req.categoryIds}&account_ids=${req.accountIds}&tag_filter=${tagFilter}&amount_filter=${amountFilter}&keyword=${keyword}&count=${req.count}&page=${req.page}&with_count=${req.withCount}&trim_account=true&trim_category=true&trim_tag=true`);
+        return axios.get<ApiResponse<TransactionInfoPageWrapperResponse>>(`v1/transactions/list.json?max_time=${req.maxTime}&min_time=${req.minTime}&type=${req.type}&category_ids=${req.categoryIds}&account_ids=${req.accountIds}&tag_filter=${tagFilter}&amount_filter=${amountFilter}&keyword=${keyword}&match_mode=${req.matchMode}&must_have_pictures=${!!req.mustHavePictures}&count=${req.count}&page=${req.page}&with_count=${req.withCount}&with_pictures=${!!req.withPictures}&trim_account=true&trim_category=true&trim_tag=true`);
     },
     getAllTransactionsByMonth: (req: TransactionListInMonthByPageRequest): ApiResponsePromise<TransactionInfoPageWrapperResponse2> => {
         const tagFilter = encodeURIComponent(req.tagFilter);
         const amountFilter = encodeURIComponent(req.amountFilter);
         const keyword = encodeURIComponent(req.keyword);
-        return axios.get<ApiResponse<TransactionInfoPageWrapperResponse2>>(`v1/transactions/list/by_month.json?year=${req.year}&month=${req.month}&type=${req.type}&category_ids=${req.categoryIds}&account_ids=${req.accountIds}&tag_filter=${tagFilter}&amount_filter=${amountFilter}&keyword=${keyword}&trim_account=true&trim_category=true&trim_tag=true`);
+        return axios.get<ApiResponse<TransactionInfoPageWrapperResponse2>>(`v1/transactions/list/by_month.json?year=${req.year}&month=${req.month}&type=${req.type}&category_ids=${req.categoryIds}&account_ids=${req.accountIds}&tag_filter=${tagFilter}&amount_filter=${amountFilter}&keyword=${keyword}&match_mode=${req.matchMode}&must_have_pictures=${!!req.mustHavePictures}&with_pictures=${!!req.withPictures}&trim_account=true&trim_category=true&trim_tag=true`);
     },
     getAllTransactions: (req: TransactionAllListRequest): ApiResponsePromise<TransactionInfoResponse[]> => {
         return axios.get<ApiResponse<TransactionInfoResponse[]>>(`v1/transactions/list/all.json?trim_account=true&with_pictures=${!!req.withPictures}&trim_category=true&trim_tag=true&start_time=${req.startTime}&end_time=${req.endTime}`);
@@ -560,6 +577,10 @@ export default {
             queryParams.push(`keyword=${encodeURIComponent(req.keyword)}`);
         }
 
+        if (req.matchMode) {
+            queryParams.push(`match_mode=${req.matchMode}`);
+        }
+
         return axios.get<ApiResponse<TransactionStatisticResponse>>(`v1/transactions/statistics.json?use_transaction_timezone=${req.useTransactionTimezone}` + (queryParams.length ? '&' + queryParams.join('&') : ''));
     },
     getTransactionStatisticsTrends: (req: TransactionStatisticTrendsRequest): ApiResponsePromise<TransactionStatisticTrendsResponseItem[]> => {
@@ -579,6 +600,10 @@ export default {
 
         if (req.keyword) {
             queryParams.push(`keyword=${encodeURIComponent(req.keyword)}`);
+        }
+
+        if (req.matchMode) {
+            queryParams.push(`match_mode=${req.matchMode}`);
         }
 
         return axios.get<ApiResponse<TransactionStatisticTrendsResponseItem[]>>(`v1/transactions/statistics/trends.json?use_transaction_timezone=${req.useTransactionTimezone}` + (queryParams.length ? '&' + queryParams.join('&') : ''));
@@ -610,6 +635,23 @@ export default {
 
         return axios.get<ApiResponse<TransactionAmountsResponse>>(`v1/transactions/amounts.json?${queryParams}`);
     },
+    getTransactionDailyAmounts: (req: TransactionDailyAmountsRequest): ApiResponsePromise<TransactionDailyAmountsResponseItem[]> => {
+        const queryParams: string[] = [
+            `start_time=${req.startTime}`,
+            `end_time=${req.endTime}`,
+            `use_transaction_timezone=${req.useTransactionTimezone}`
+        ];
+
+        if (req.excludeAccountIds.length) {
+            queryParams.push(`exclude_account_ids=${req.excludeAccountIds.join(',')}`);
+        }
+
+        if (req.excludeCategoryIds.length) {
+            queryParams.push(`exclude_category_ids=${req.excludeCategoryIds.join(',')}`);
+        }
+
+        return axios.get<ApiResponse<TransactionDailyAmountsResponseItem[]>>(`v1/transactions/amounts/daily.json?${queryParams.join('&')}`);
+    },
     getTransaction: ({ id, withPictures }: { id: string, withPictures: boolean | undefined }): ApiResponsePromise<TransactionInfoResponse> => {
         if (!isDefined(withPictures)) {
             withPictures = true;
@@ -623,11 +665,41 @@ export default {
     modifyTransaction: (req: TransactionModifyRequest): ApiResponsePromise<TransactionInfoResponse> => {
         return axios.post<ApiResponse<TransactionInfoResponse>>('v1/transactions/modify.json', req);
     },
+    batchUpdateTransactionCategories: (req: TransactionBatchUpdateCategoryRequest): ApiResponsePromise<boolean> => {
+        return axios.post<ApiResponse<boolean>>('v1/transactions/batch_update/category.json', req, {
+            timeout: DEFAULT_BATCH_UPDATE_TRANSACTIONS_API_TIMEOUT
+        } as ApiRequestConfig);
+    },
+    batchUpdateTransactionAccounts: (req: TransactionBatchUpdateAccountRequest): ApiResponsePromise<boolean> => {
+        return axios.post<ApiResponse<boolean>>('v1/transactions/batch_update/account.json', req, {
+            timeout: DEFAULT_BATCH_UPDATE_TRANSACTIONS_API_TIMEOUT
+        } as ApiRequestConfig);
+    },
+    batchAddTagsToTransaction: (req: TransactionBatchAddTagsRequest): ApiResponsePromise<boolean> => {
+        return axios.post<ApiResponse<boolean>>('v1/transactions/batch_update/tag/add.json', req, {
+            timeout: DEFAULT_BATCH_UPDATE_TRANSACTIONS_API_TIMEOUT
+        } as ApiRequestConfig);
+    },
+    batchRemoveTagsFromTransaction: (req: TransactionBatchRemoveTagsRequest): ApiResponsePromise<boolean> => {
+        return axios.post<ApiResponse<boolean>>('v1/transactions/batch_update/tag/remove.json', req, {
+            timeout: DEFAULT_BATCH_UPDATE_TRANSACTIONS_API_TIMEOUT
+        } as ApiRequestConfig);
+    },
+    batchClearAllTagsFromTransaction: (req: TransactionBatchClearTagsRequest): ApiResponsePromise<boolean> => {
+        return axios.post<ApiResponse<boolean>>('v1/transactions/batch_update/tag/clear.json', req, {
+            timeout: DEFAULT_BATCH_UPDATE_TRANSACTIONS_API_TIMEOUT
+        } as ApiRequestConfig);
+    },
     moveAllTransactionsBetweenAccounts: (req: TransactionMoveBetweenAccountsRequest): ApiResponsePromise<boolean> => {
         return axios.post<ApiResponse<boolean>>('v1/transactions/move/all.json', req);
     },
     deleteTransaction: (req: TransactionDeleteRequest): ApiResponsePromise<boolean> => {
         return axios.post<ApiResponse<boolean>>('v1/transactions/delete.json', req);
+    },
+    batchDeleteTransaction: (req: TransactionBatchDeleteRequest): ApiResponsePromise<boolean> => {
+        return axios.post<ApiResponse<boolean>>('v1/transactions/batch_delete.json', req, {
+            timeout: DEFAULT_BATCH_UPDATE_TRANSACTIONS_API_TIMEOUT
+        } as ApiRequestConfig);
     },
     parseImportCustomFile: ({ fileType, fileEncoding, importFile }: { fileType: string, fileEncoding?: string, importFile: File }): ApiResponsePromise<string[][]> => {
         return axios.postForm<ApiResponse<string[][]>>('v1/transactions/parse_custom_file.json', {
@@ -638,7 +710,7 @@ export default {
             timeout: DEFAULT_UPLOAD_API_TIMEOUT
         } as ApiRequestConfig);
     },
-    parseImportTransaction: ({ fileType, additionalOptions, fileEncoding, importFile, columnMapping, transactionTypeMapping, hasHeaderLine, timeFormat, timezoneFormat, amountDecimalSeparator, amountDigitGroupingSymbol, geoSeparator, geoOrder, tagSeparator }: { fileType: string, additionalOptions?: ImportFileTypeSupportedAdditionalOptions, fileEncoding?: string, importFile: File, columnMapping?: Record<number, number>, transactionTypeMapping?: Record<string, TransactionType>, hasHeaderLine?: boolean, timeFormat?: string, timezoneFormat?: string, amountDecimalSeparator?: string, amountDigitGroupingSymbol?: string, geoSeparator?: string, geoOrder?: string, tagSeparator?: string }): ApiResponsePromise<ImportTransactionResponsePageWrapper> => {
+    parseImportTransaction: ({ fileType, additionalOptions, aiAdditionalPrompt, fileEncoding, importFile, columnMapping, transactionTypeMapping, hasHeaderLine, timeFormat, timezoneFormat, amountDecimalSeparator, amountDigitGroupingSymbol, geoSeparator, geoOrder, tagSeparator, cancelableUuid }: { fileType: string, additionalOptions?: ImportFileTypeSupportedAdditionalOptions, aiAdditionalPrompt?: string, fileEncoding?: string, importFile: File, columnMapping?: Record<number, number>, transactionTypeMapping?: Record<string, TransactionType>, hasHeaderLine?: boolean, timeFormat?: string, timezoneFormat?: string, amountDecimalSeparator?: string, amountDigitGroupingSymbol?: string, geoSeparator?: string, geoOrder?: string, tagSeparator?: string, cancelableUuid?: string }): ApiResponsePromise<ImportTransactionResponsePageWrapper> => {
         let textualAdditionalOptions: string | undefined = undefined;
         let textualColumnMapping: string | undefined = undefined;
         let textualTransactionTypeMapping: string | undefined = undefined;
@@ -660,9 +732,16 @@ export default {
             textualHasHeaderLine = 'true';
         }
 
+        let timeout: number = DEFAULT_UPLOAD_API_TIMEOUT;
+
+        if (fileType === 'ai_txt' || fileType === 'ai_image') {
+            timeout = DEFAULT_LLM_API_TIMEOUT;
+        }
+
         return axios.postForm<ApiResponse<ImportTransactionResponsePageWrapper>>('v1/transactions/parse_import.json', {
             fileType: fileType,
             options: textualAdditionalOptions,
+            aiPrompt: aiAdditionalPrompt,
             fileEncoding: fileEncoding,
             file: importFile,
             columnMapping: textualColumnMapping,
@@ -676,7 +755,8 @@ export default {
             geoOrder: geoOrder,
             tagSeparator: tagSeparator
         }, {
-            timeout: DEFAULT_UPLOAD_API_TIMEOUT
+            timeout: timeout,
+            cancelableUuid: cancelableUuid
         } as ApiRequestConfig);
     },
     importTransactions: (req: TransactionImportRequest): ApiResponsePromise<number> => {
@@ -787,42 +867,58 @@ export default {
     deleteTransactionTemplate: (req: TransactionTemplateDeleteRequest): ApiResponsePromise<boolean> => {
         return axios.post<ApiResponse<boolean>>('v1/transaction/templates/delete.json', req);
     },
-    getAllInsightsExplorers: (): ApiResponsePromise<InsightsExplorerInfoResponse[]> => {
+    getAllExplorations: (): ApiResponsePromise<InsightsExplorerInfoResponse[]> => {
         return axios.get<ApiResponse<InsightsExplorerInfoResponse[]>>('v1/insights/explorers/list.json');
     },
-    getInsightsExplorer: ({ id }: { id: string }): ApiResponsePromise<InsightsExplorerInfoResponse> => {
+    getExploration: ({ id }: { id: string }): ApiResponsePromise<InsightsExplorerInfoResponse> => {
         return axios.get<ApiResponse<InsightsExplorerInfoResponse>>('v1/insights/explorers/get.json?id=' + id);
     },
-    addInsightsExplorer: (req: InsightsExplorerCreateRequest): ApiResponsePromise<InsightsExplorerInfoResponse> => {
+    addExploration: (req: InsightsExplorerCreateRequest): ApiResponsePromise<InsightsExplorerInfoResponse> => {
         return axios.post<ApiResponse<InsightsExplorerInfoResponse>>('v1/insights/explorers/add.json', req);
     },
-    modifyInsightsExplorer: (req: InsightsExplorerModifyRequest): ApiResponsePromise<InsightsExplorerInfoResponse> => {
+    modifyExploration: (req: InsightsExplorerModifyRequest): ApiResponsePromise<InsightsExplorerInfoResponse> => {
         return axios.post<ApiResponse<InsightsExplorerInfoResponse>>('v1/insights/explorers/modify.json', req);
     },
-    hideInsightsExplorer: (req: InsightsExplorerHideRequest): ApiResponsePromise<boolean> => {
+    hideExploration: (req: InsightsExplorerHideRequest): ApiResponsePromise<boolean> => {
         return axios.post<ApiResponse<boolean>>('v1/insights/explorers/hide.json', req);
     },
-    moveInsightsExplorer: (req: InsightsExplorerMoveRequest): ApiResponsePromise<boolean> => {
+    moveExploration: (req: InsightsExplorerMoveRequest): ApiResponsePromise<boolean> => {
         return axios.post<ApiResponse<boolean>>('v1/insights/explorers/move.json', req);
     },
-    deleteInsightsExplorer: (req: InsightsExplorerDeleteRequest): ApiResponsePromise<boolean> => {
+    deleteExploration: (req: InsightsExplorerDeleteRequest): ApiResponsePromise<boolean> => {
         return axios.post<ApiResponse<boolean>>('v1/insights/explorers/delete.json', req);
     },
-    recognizeReceiptImage: ({ imageFile, cancelableUuid }: { imageFile: File, cancelableUuid?: string }): ApiResponsePromise<RecognizedReceiptImageResponse> => {
-        return axios.postForm<ApiResponse<RecognizedReceiptImageResponse>>('v1/llm/transactions/recognize_receipt_image.json', {
+    recognizeTransactionText: ({ text }: { text: string }): ApiResponsePromise<RecognizedTransactionResponse> => {
+        return axios.post<ApiResponse<RecognizedTransactionResponse>>('v1/llm/transactions/recognize_text.json', {
+            text: text
+        }, {
+            timeout: DEFAULT_LLM_API_TIMEOUT
+        } as ApiRequestConfig);
+    },
+    recognizeReceiptImage: ({ imageFile, cancelableUuid }: { imageFile: File, cancelableUuid?: string }): ApiResponsePromise<RecognizedTransactionResponse> => {
+        return axios.postForm<ApiResponse<RecognizedTransactionResponse>>('v1/llm/transactions/recognize_receipt_image.json', {
             image: imageFile
         }, {
             timeout: DEFAULT_LLM_API_TIMEOUT,
             cancelableUuid: cancelableUuid
         } as ApiRequestConfig);
     },
-    recognizeReceiptImages: ({ imageFiles, cancelableUuid }: { imageFiles: File[], cancelableUuid?: string }): ApiResponsePromise<RecognizedReceiptImageBatchResponse> => {
-        return axios.postForm<ApiResponse<RecognizedReceiptImageBatchResponse>>('v1/llm/transactions/recognize_receipt_images.json', {
-            image: imageFiles
+    getAllUserCustomIcons: (): ApiResponsePromise<UserCustomIconInfoResponse[]> => {
+        return axios.get<ApiResponse<UserCustomIconInfoResponse[]>>('v1/custom_icons/list.json');
+    },
+    uploadUserCustomIcon: ({ iconFile, clientSessionId }: { iconFile: File, clientSessionId?: string }): ApiResponsePromise<UserCustomIconInfoResponse> => {
+        return axios.postForm<ApiResponse<UserCustomIconInfoResponse>>('v1/custom_icons/upload.json', {
+            icon: iconFile,
+            clientSessionId: clientSessionId
         }, {
-            timeout: DEFAULT_LLM_API_TIMEOUT * imageFiles.length,
-            cancelableUuid: cancelableUuid
+            timeout: DEFAULT_UPLOAD_API_TIMEOUT
         } as ApiRequestConfig);
+    },
+    moveUserCustomIcons: (req: UserCustomIconMoveRequest): ApiResponsePromise<boolean> => {
+        return axios.post<ApiResponse<boolean>>('v1/custom_icons/move.json', req);
+    },
+    deleteUserCustomIcon: (req: UserCustomIconDeleteRequest): ApiResponsePromise<boolean> => {
+        return axios.post<ApiResponse<boolean>>('v1/custom_icons/delete.json', req);
     },
     chatWithAIAssistant: ({ req, cancelableUuid }: { req: AIAssistantChatRequest, cancelableUuid?: string }): ApiResponsePromise<AIAssistantChatResponse> => {
         return axios.post<ApiResponse<AIAssistantChatResponse>>('v1/llm/assistant/chat.json', req, {
@@ -1141,6 +1237,9 @@ export default {
         } else {
             return avatarUrl + '?' + params.join('&');
         }
+    },
+    getUserCustomIconUrlWithToken(iconId: string | number): string {
+        return `${getBasePath()}/icons/${iconId}.png?token=${getCurrentToken()}`;
     },
     getTransactionPictureUrlWithToken(pictureUrl: string, disableBrowserCache?: boolean | string): string {
         if (!pictureUrl) {

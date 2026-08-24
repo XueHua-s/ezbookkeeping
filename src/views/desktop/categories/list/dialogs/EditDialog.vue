@@ -1,14 +1,10 @@
 <template>
     <v-dialog width="800" :persistent="isCategoryModified" v-model="showState">
-        <v-card class="pa-sm-1 pa-md-2">
-            <template #title>
-                <div class="d-flex align-center">
-                    <h4 class="text-h4">{{ tt(title) }}</h4>
-                    <v-progress-circular indeterminate size="22" class="ms-2" v-if="loading"></v-progress-circular>
-                </div>
-            </template>
-            <v-card-text class="d-flex flex-column flex-md-row flex-grow-1 overflow-y-auto">
-                <v-form class="w-100 mt-2">
+        <one-column-dialog-layout :disabled="loading || submitting" :loading="loading"
+                                  :title="tt(title)" :cancel-button-title="tt('Cancel')"
+                                  @cancel="cancel">
+            <template #content>
+                <v-form class="mt-2">
                     <v-row>
                         <v-col cols="12" md="12">
                             <v-text-field
@@ -32,32 +28,33 @@
                                 :no-data-text="tt('No available primary category')"
                                 v-model="category.parentId"
                             >
-                                <template #item="{ props, item }">
+                                <template #item="{ props, internalItem }">
                                     <v-list-item v-bind="props">
                                         <template #prepend>
-                                            <ItemIcon class="me-2" icon-type="category"
-                                                      :icon-id="item.raw.icon" :color="item.raw.color"></ItemIcon>
+                                            <ItemIcon class="me-2" :icon-type="getCategoryIconType(internalItem.raw.iconType)"
+                                                      :icon-id="internalItem.raw.icon" :color="internalItem.raw.color"></ItemIcon>
                                         </template>
                                         <template #title>
-                                            <div class="text-truncate">{{ item.raw.name }}</div>
+                                            <div class="text-truncate">{{ internalItem.raw.name }}</div>
                                         </template>
                                     </v-list-item>
                                 </template>
                             </v-select>
                         </v-col>
                         <v-col cols="12" md="6">
-                            <icon-select icon-type="category"
-                                         :all-icon-infos="ALL_CATEGORY_ICONS"
-                                          :label="tt('Category Icon')"
-                                          :color="category.color"
-                                          :disabled="loading || submitting"
-                                          v-model="category.icon" />
+                            <icon-select type="category"
+                                         :all-system-icon-infos="ALL_CATEGORY_ICONS"
+                                         :label="tt('Category Icon')"
+                                         :color="category.color"
+                                         :disabled="loading || submitting"
+                                         v-model:icon-type="category.iconType"
+                                         v-model="category.icon" />
                         </v-col>
                         <v-col cols="12" md="6">
-                            <color-select :all-color-infos="ALL_CATEGORY_COLORS"
-                                         :label="tt('Category Color')"
-                                         :disabled="loading || submitting"
-                                         v-model="category.color" />
+                            <color-select :all-system-color-infos="ALL_CATEGORY_COLORS"
+                                          :label="tt('Category Color')"
+                                          :disabled="loading || submitting"
+                                          v-model="category.color" />
                         </v-col>
                         <v-col cols="12" md="12">
                             <v-textarea
@@ -70,30 +67,28 @@
                                 v-model="category.comment"
                             />
                         </v-col>
-                        <v-col class="py-0" cols="12" md="12" v-if="editCategoryId">
+                        <v-col class="py-0 my-n2" cols="12" md="12" v-if="editCategoryId">
                             <v-switch :disabled="loading || submitting"
                                       :label="tt('Visible')" v-model="category.visible"/>
                         </v-col>
                     </v-row>
                 </v-form>
-            </v-card-text>
-            <v-card-text>
-                <div class="w-100 d-flex justify-center flex-wrap mt-sm-1 mt-md-2 gap-4">
-                    <v-tooltip :disabled="!inputIsEmpty" :text="inputEmptyProblemMessage ? tt(inputEmptyProblemMessage) : ''">
-                        <template v-slot:activator="{ props }">
-                            <div v-bind="props" class="d-inline-block">
-                                <v-btn :disabled="inputIsEmpty || loading || submitting" @click="save">
-                                    {{ tt(saveButtonTitle) }}
-                                    <v-progress-circular indeterminate size="22" class="ms-2" v-if="submitting"></v-progress-circular>
-                                </v-btn>
-                            </div>
-                        </template>
-                    </v-tooltip>
-                    <v-btn color="secondary" variant="tonal"
-                           :disabled="loading || submitting" @click="cancel">{{ tt('Cancel') }}</v-btn>
-                </div>
-            </v-card-text>
-        </v-card>
+            </template>
+
+            <template #footer>
+                <v-spacer/>
+                <v-tooltip :disabled="!inputIsEmpty" :text="inputEmptyProblemMessage ? tt(inputEmptyProblemMessage) : ''">
+                    <template v-slot:activator="{ props }">
+                        <div v-bind="props" class="d-inline-block">
+                            <v-btn :disabled="inputIsEmpty || loading || submitting" @click="save">
+                                {{ tt(saveButtonTitle) }}
+                                <v-progress-circular indeterminate size="22" class="ms-2" v-if="submitting"></v-progress-circular>
+                            </v-btn>
+                        </div>
+                    </template>
+                </v-tooltip>
+            </template>
+        </one-column-dialog-layout>
     </v-dialog>
 
     <snack-bar ref="snackbar" />
@@ -115,6 +110,8 @@ import { ALL_CATEGORY_ICONS } from '@/consts/icon.ts';
 import { ALL_CATEGORY_COLORS } from '@/consts/color.ts';
 import { TransactionCategory } from '@/models/transaction_category.ts';
 
+import { isEquals } from '@/lib/common.ts';
+import { getCategoryIconType } from '@/lib/icon.ts';
 import { generateRandomUUID } from '@/lib/misc.ts';
 
 interface TransactionCategoryEditResponse {
@@ -141,16 +138,17 @@ const transactionCategoriesStore = useTransactionCategoriesStore();
 
 const snackbar = useTemplateRef<SnackBarType>('snackbar');
 
-const showState = ref<boolean>(false);
-
 let resolveFunc: ((value: TransactionCategoryEditResponse) => void) | null = null;
 let rejectFunc: ((reason?: unknown) => void) | null = null;
 
+const showState = ref<boolean>(false);
+const initCategory = ref<TransactionCategory | null>(null);
+
 const isCategoryModified = computed<boolean>(() => {
     if (!editCategoryId.value) { // Add
-        return !category.value.equals(TransactionCategory.createNewCategory(category.value.type, category.value.parentId));
+        return !!initCategory.value && !isEquals(category.value.toCreateRequest(clientSessionId.value), initCategory.value.toCreateRequest(clientSessionId.value));
     } else { // Edit
-        return true;
+        return !!initCategory.value && !isEquals(category.value.toModifyRequest(), initCategory.value.toModifyRequest());
     }
 });
 
@@ -159,8 +157,8 @@ function open(options: { id?: string; parentId?: string; type?: CategoryType; cu
     loading.value = true;
     submitting.value = false;
 
-    const newTransactionCategory = TransactionCategory.createNewCategory();
-    category.value.fillFrom(newTransactionCategory);
+    initCategory.value = TransactionCategory.createNewCategory();
+    category.value.fillFrom(initCategory.value);
 
     if (options.id) {
         if (options.currentCategory) {
@@ -172,6 +170,7 @@ function open(options: { id?: string; parentId?: string; type?: CategoryType; cu
             categoryId: editCategoryId.value
         }).then(response => {
             category.value.fillFrom(response);
+            initCategory.value = TransactionCategory.of(response);
             loading.value = false;
         }).catch(error => {
             loading.value = false;
@@ -197,15 +196,20 @@ function open(options: { id?: string; parentId?: string; type?: CategoryType; cu
             return Promise.reject('Parameter Invalid');
         }
 
-        category.value.type = categoryType;
-        category.value.parentId = options.parentId;
+        initCategory.value.type = categoryType;
+        initCategory.value.parentId = options.parentId;
+
+        category.value.type = initCategory.value.type;
+        category.value.parentId = initCategory.value.parentId;
 
         if (options.color) {
-            category.value.color = options.color;
+            initCategory.value.color = options.color;
+            category.value.color = initCategory.value.color;
         }
 
         if (options.icon) {
-            category.value.icon = options.icon;
+            initCategory.value.icon = options.icon;
+            category.value.icon = initCategory.value.icon;
         }
 
         clientSessionId.value = generateRandomUUID();
