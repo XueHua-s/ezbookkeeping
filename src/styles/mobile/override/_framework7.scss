@@ -1,5 +1,20 @@
 /** Fixing framework7 issues **/
 
+
+/** Fix iOS standalone (home screen / PWA) viewport height issue.
+    Framework7 adds a  device-full-viewport class to <html> and sets its
+    height (and body's) to 100vh when the app runs in iOS standalone mode.
+    On iOS, 100vh is the large viewport height, which is taller than the
+    visible area. As a result the body becomes scrollable (an extra scrollbar
+    appears), rubber-band scrolling pushes the navbar/toolbar off screen, and
+    part of the content slides under the status bar. Use the dynamic viewport
+    height instead so the app fits the visible area exactly. **/
+html.device-full-viewport,
+html.device-full-viewport body {
+    height: 100dvh;
+}
+
+
 /** https://github.com/framework7io/framework7/pull/4400 **/
 html[dir="rtl"].ios {
     .toggle-icon {
